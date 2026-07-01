@@ -1,0 +1,91 @@
+
+const PI = 3.14
+int x = null
+
+print("hello world")
+print("Random number: " + randint(1, 100))
+
+loop (4 as i){
+    print(i)
+}
+
+loop (4) {
+    pass
+}
+
+loop (i < k) {
+
+}
+
+if True{
+    pass
+}
+else if (False){
+    print("Hello world")
+}
+
+if True and False{
+    pass
+}
+else if (True or False){
+    print("logical keywords")
+}
+
+loop (i > j): 
+    k = i % j
+
+int i = 0;
+
+function Line(x, y, z=6){
+    pass
+} 
+
+struct node{
+    int id;
+    string data;
+    boolean endOfLinkedList;
+}
+
+#comment A
+
+/*  comment B line one
+    comment B line two
+    comment B line three*/
+
+node* nodeA = node(1, "random stuff here", True)
+node copyOf = *nodeA
+
+class duck{
+    private string name
+    private int favoriteNumber
+
+    function Duck(){
+        name = "Jeff"
+        favoriteNumber = 3
+    }
+
+    function .add(x){
+        favoriteNumber++
+        favoriteNumber = int((favoriteNumber + x) / x)
+        return favoriteNumber
+    }
+
+    function .print(){
+        print("Favorite Number: " + favoriteNumber)
+    }
+}
+
+duck one = Duck()
+
+list two = []
+
+//fills the entire list with zeros
+char letter = 'a'
+
+two.fill(0)
+
+
+dict iAmRunningOutOfNames = {
+    "key": value,
+    "key": value
+}

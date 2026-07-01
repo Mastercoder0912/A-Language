@@ -1,0 +1,14 @@
+class Dog {
+    private string name
+
+    function Dog() {
+        name = "Buddy"
+    }
+
+    function .getName() {
+        return name
+    }
+}
+
+Dog dog = Dog()
+print(dog.getName())

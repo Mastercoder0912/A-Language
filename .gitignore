@@ -1,0 +1,18 @@
+# Build artifacts
+arun
+test_parser
+*.o
+*.out
+*.dSYM/
+*.vsix
+
+# Runtime and editor noise
+node_modules/
+__pycache__/
+*.pyc
+.DS_Store
+*.swp
+*.tmp
+
+# Local test outputs
+example programs/output.txt

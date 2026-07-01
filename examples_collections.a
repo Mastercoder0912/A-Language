@@ -1,0 +1,13 @@
+list nums = [1, 2, 3]
+nums[1] = 9
+print(nums)
+
+nums.fill(7)
+print(nums)
+
+dict scores = {
+    "a": 1
+}
+
+scores["b"] = 2
+print(scores["b"])

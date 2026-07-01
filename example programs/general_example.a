@@ -1,0 +1,10 @@
+# General example program for A Language
+
+function greet(name) {
+    print("Hello, " + name)
+}
+
+greet("world")
+print(pow(2, 8))
+write_file("example programs/output.txt", "saved from A Language")
+print(read_file("example programs/general_example.a"))
