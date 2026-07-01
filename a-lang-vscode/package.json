@@ -1,0 +1,50 @@
+{
+    "name": "a-language",
+    "displayName": "A Language",
+    "description": "Syntax highlighting for the A Programming Language",
+    "version": "0.2.0",
+    "publisher": "a-lang",
+    "icon": "icons/a-dark.png",
+    "engines": {
+        "vscode": "^1.60.0"
+    },
+    "categories": [
+        "Programming Languages"
+    ],
+    "scripts": {
+        "validate": "node ./scripts/validate-extension.js"
+    },
+    "contributes": {
+        "languages": [
+            {
+                "id": "a-lang",
+                "aliases": [
+                    "A Language",
+                    "a-lang"
+                ],
+                "extensions": [
+                    ".a"
+                ],
+                "filenames": [
+                    "Afile"
+                ],
+                "configuration": "./language-configuration.json",
+                "icon": {
+                    "light": "./icons/a-light.png",
+                    "dark": "./icons/a-dark.png"
+                }
+            }
+        ],
+        "grammars": [
+            {
+                "language": "a-lang",
+                "scopeName": "source.a",
+                "path": "./syntaxes/a.tmLanguage.json"
+            }
+        ]
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/mastercoder0912/a-language-vscode.git"
+    }
+}

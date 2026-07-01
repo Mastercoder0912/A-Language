@@ -16,3 +16,8 @@ __pycache__/
 
 # Local test outputs
 example programs/output.txt
+plan.txt
+test_full.a
+test.a
+a-lang-vscode/INSTALL.md
+a-lang-vscode/SETUP.md

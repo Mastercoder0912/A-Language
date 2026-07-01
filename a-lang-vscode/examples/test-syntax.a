@@ -1,0 +1,262 @@
+# A Language - Comprehensive Syntax Highlighting Test File
+# This file tests all syntax highlighting features
+
+# ==============================================================================
+# COMMENTS
+# ==============================================================================
+
+# Single line comment with hash
+// Single line comment with slash
+/* Multi-line comment
+   spanning multiple
+   lines */
+
+
+# ==============================================================================
+# BASIC TYPES AND LITERALS
+# ==============================================================================
+
+int x = 0
+int y = 42
+int z = -100
+
+string name = "Alice"
+string greeting = "Hello, World!"
+
+boolean flag = True
+boolean active = False
+
+# Collections
+list numbers = []
+dict config = {
+    "key1": 100,
+    "key2": "value"
+}
+
+
+# ==============================================================================
+# OPERATORS
+# ==============================================================================
+
+int a = 5
+int b = 3
+
+int sum = a + b          # Addition
+int diff = a - b         # Subtraction
+int product = a * b      # Multiplication
+int quotient = a / b     # Division
+int remainder = a % b    # Modulo
+
+int counter = 0
+counter++                # Post-increment
+
+# Comparisons
+if (a > b) {
+    print("Greater")
+}
+
+if (a == 5) {
+    print("Equal")
+}
+
+
+# ==============================================================================
+# STRINGS AND F-STRINGS
+# ==============================================================================
+
+string simple = "Simple string"
+string withEscape = "Line 1\nLine 2"
+
+int value = 42
+string interpolated = f"The answer is {value}"
+string complex = f"Result: {a + b} with {name}"
+
+
+# ==============================================================================
+# CONTROL FLOW
+# ==============================================================================
+
+# If statement
+if (x > 10) {
+    print("Greater than 10")
+}
+else if (x > 5) {
+    print("Greater than 5")
+}
+else {
+    print("5 or less")
+}
+
+# Counted loop
+loop (3 as i) {
+    print(i)
+}
+
+# Conditional loop
+int count = 0
+loop (count < 5) {
+    count++
+    print(count)
+}
+
+# Pass statement
+if (True) {
+    pass
+}
+
+
+# ==============================================================================
+# FUNCTIONS
+# ==============================================================================
+
+function add(a, b) {
+    return a + b
+}
+
+function greet(name, greeting = "Hello") {
+    print(greeting + " " + name)
+}
+
+# Function calls
+int result = add(5, 3)
+greet("Alice")
+greet("Bob", "Hi")
+
+# Built-in functions
+print("Output text")
+int num = int("42")
+string text = string(100)
+int roll = randint(1, 6)
+string kind = type(roll)
+
+
+# ==============================================================================
+# STRUCTS
+# ==============================================================================
+
+struct Point {
+    int x;
+    int y;
+}
+
+struct Person {
+    string name;
+    int age;
+    string email;
+}
+
+Point p = Point(10, 20)
+print(p.x)
+print(p.y)
+
+Person person = Person("Charlie", 30, "charlie@example.com")
+
+
+# ==============================================================================
+# CLASSES AND OOP
+# ==============================================================================
+
+class Dog {
+    private string name
+    private int age
+    
+    function Dog() {
+        name = "Buddy"
+        age = 5
+    }
+    
+    function .bark() {
+        print(name + " barks!")
+    }
+    
+    function .getAge() {
+        return age
+    }
+    
+    function .getName() {
+        return name
+    }
+}
+
+class Counter {
+    private int value
+    
+    function Counter() {
+        value = 0
+    }
+    
+    function .increment() {
+        value++
+    }
+    
+    function .decrement() {
+        value--
+    }
+    
+    function .getValue() {
+        return value
+    }
+}
+
+Dog dog = Dog()
+dog.bark()
+print(dog.getAge())
+
+Counter cnt = Counter()
+cnt.increment()
+print(cnt.getValue())
+
+
+# ==============================================================================
+# COMPLEX EXAMPLES
+# ==============================================================================
+
+# List operations
+list items = []
+items.fill(0)
+items[0] = 100
+print(items[0])
+
+# Dict operations
+dict userData = {
+    "username": "alice",
+    "email": "alice@example.com",
+    "verified": True
+}
+
+# Nested structures
+struct Author {
+    string name;
+    string email;
+}
+
+class Book {
+    private string title
+    private Author author
+    
+    function Book() {
+        title = "Unknown"
+    }
+    
+    function .getTitle() {
+        return title
+    }
+}
+
+# Type casting
+string numStr = "123"
+int parsed = int(numStr)
+
+int number = 456
+string converted = string(number)
+
+# Complex expressions
+int calculation = (a + b) * (a - b)
+string message = f"Calculation: {(a + b) * (a - b)}"
+
+# Loop with function calls
+loop (5) -> idx {
+    print(idx)
+    result = add(idx, 10)
+    print(result)
+}
