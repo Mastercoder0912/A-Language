@@ -5,6 +5,7 @@
 The goal of `.a` is to help students and educators focus on learning programming concepts instead of struggling with complex syntax.
 
 ---
+## Please star or share this to help others join the world of programming
 
 ## Features
 
@@ -24,6 +25,21 @@ The goal of `.a` is to help students and educators focus on learning programming
 - Written entirely in C
 
 ---
+## Installing
+
+1. Install via git using the command 
+``` bash
+git clone https://github.com/Mastercoder0912/A-Language.git
+```
+
+3. Make a fresh compile
+``` bash
+make install
+```
+4. Enjoy or test by running
+```
+arun examples/hello.a
+```
 
 ## Building
 
@@ -182,3 +198,4 @@ Current features include:
 ## License
 
 This project is open for learning, experimentation, and educational use.
+
