@@ -86,7 +86,10 @@ Value builtin_input(Value *args, int arg_count)
     }
 
     char *buffer = malloc(256);
-    fgets(buffer, 256, stdin);
+    if (!fgets(buffer, 256, stdin)) {
+        fprintf(stderr, "Error: failed to read input\n");
+        return value_make_null();
+    }
 
     char *newline = strchr(buffer, '\n');
     if (newline)
