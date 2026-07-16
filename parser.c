@@ -160,6 +160,14 @@ ASTNode* parse_primary(Parser* parser) {
             parser_advance(parser);
             return node;
         }
+        case 31: {
+            ASTNode* node = malloc(sizeof(ASTNode));
+            node->type = AST_IDENTIFIER_TYPE;
+            node->data.identifier.value = malloc(strlen(current.value) + 1);
+            strcpy(node->data.identifier.value, current.value);
+            parser_advance(parser);
+            return node;
+        }
         case 1: {
             parser_advance(parser);
             ASTNode* expr = parse_expression(parser);
@@ -956,6 +964,13 @@ ASTNode* parse_statement(Parser* parser) {
         case 40:
         case 35:
         case 38: {
+            if (parser->peek_token.type == 1) {
+                ASTNode* expr = parse_expression(parser);
+                if (parser->current_token.type == 7) {
+                    parser_advance(parser);
+                }
+                return expr;
+            }
             return parse_variable_declaration(parser);
         }
         case 41: {

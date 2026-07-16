@@ -72,6 +72,49 @@ static int set_this_field(Environment *env, char *name, Value value)
     return 1;
 }
 
+static Value *resolve_target_ref(ASTNode *target, Environment *env)
+{
+    if (!target)
+    {
+        return NULL;
+    }
+
+    if (target->type == AST_IDENTIFIER_TYPE)
+    {
+        return env_get_ref(env, target->data.identifier.value);
+    }
+
+    if (target->type == AST_INDEX_ACCESS_TYPE)
+    {
+        AST_INDEX_ACCESS *access = &target->data.index_access;
+        Value *collection = resolve_target_ref(access->array, env);
+        if (!collection)
+        {
+            return NULL;
+        }
+
+        Value index = eval_expression(access->index, env);
+        if (collection->type == VALUE_LIST && index.type == VALUE_INT)
+        {
+            if (index.data.int_val < 0 || index.data.int_val >= collection->data.list_val.count)
+            {
+                return NULL;
+            }
+            return &collection->data.list_val.elements[index.data.int_val];
+        }
+        if (collection->type == VALUE_DICT)
+        {
+            char *key = value_to_string(index);
+            Value *value_ref = dict_get_ref(collection, key, true);
+            free(key);
+            return value_ref;
+        }
+        return NULL;
+    }
+
+    return NULL;
+}
+
 static Value copy_value(Value original)
 {
     switch (original.type)
@@ -669,6 +712,10 @@ Value eval_function_call(ASTNode *node, Environment *env)
     {
         return builtin_string(args, call->argument_count);
     }
+    else if (strcmp(func_name, "list") == 0)
+    {
+        return builtin_list(args, call->argument_count);
+    }
     else if (strcmp(func_name, "len") == 0)
     {
         return builtin_len(args, call->argument_count);
@@ -976,12 +1023,14 @@ void eval_loop_statement(ASTNode *node, Environment *env)
     {
         while (value_is_truthy(eval_expression(loop->parameters[0], env)))
         {
+            env_push_scope(env);
             for (int i = 0; i < loop->body->statement_count; i++)
             {
                 eval_statement(loop->body->statements[i], env);
                 if (return_flag.is_return)
                     break;
             }
+            env_pop_scope(env);
             if (return_flag.is_return)
                 break;
         }
@@ -1327,21 +1376,17 @@ void eval_assignment(ASTNode *node, Environment *env)
     else if (assignment->target->type == AST_INDEX_ACCESS_TYPE)
     {
         AST_INDEX_ACCESS *access = &assignment->target->data.index_access;
-        if (access->array->type == AST_IDENTIFIER_TYPE)
+        Value *collection = resolve_target_ref(access->array, env);
+        Value index = eval_expression(access->index, env);
+        if (collection && collection->type == VALUE_LIST && index.type == VALUE_INT)
         {
-            char *name = access->array->data.identifier.value;
-            Value *collection = env_get_ref(env, name);
-            Value index = eval_expression(access->index, env);
-            if (collection && collection->type == VALUE_LIST && index.type == VALUE_INT)
-            {
-                list_set(collection, index.data.int_val, right_val);
-            }
-            else if (collection && collection->type == VALUE_DICT)
-            {
-                char *key = value_to_string(index);
-                dict_set(collection, key, right_val);
-                free(key);
-            }
+            list_set(collection, index.data.int_val, right_val);
+        }
+        else if (collection && collection->type == VALUE_DICT)
+        {
+            char *key = value_to_string(index);
+            dict_set(collection, key, right_val);
+            free(key);
         }
     }
 }
@@ -1498,6 +1543,11 @@ void register_builtins(Environment *env)
     len_fn.type = VALUE_BUILTIN;
     len_fn.data.builtin_fn = builtin_len;
     env_define(env, "len", len_fn);
+
+    Value list_fn;
+    list_fn.type = VALUE_BUILTIN;
+    list_fn.data.builtin_fn = builtin_list;
+    env_define(env, "list", list_fn);
 
     Value input_fn;
     input_fn.type = VALUE_BUILTIN;

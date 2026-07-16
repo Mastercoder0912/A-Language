@@ -51,6 +51,53 @@ Value builtin_string(Value *args, int arg_count)
     return result;
 }
 
+Value builtin_list(Value *args, int arg_count)
+{
+    if (arg_count == 0)
+    {
+        return list_create();
+    }
+    if (arg_count != 1)
+    {
+        return value_make_null();
+    }
+
+    Value arg = args[0];
+
+    if (arg.type == VALUE_LIST)
+    {
+        Value result = list_create();
+        for (int i = 0; i < arg.data.list_val.count; i++)
+        {
+            list_append(&result, arg.data.list_val.elements[i]);
+        }
+        return result;
+    }
+    if (arg.type == VALUE_STRING)
+    {
+        Value result = list_create();
+        char tmp[2] = {'\0', '\0'};
+        for (int i = 0; arg.data.string_val[i] != '\0'; i++)
+        {
+            tmp[0] = arg.data.string_val[i];
+            list_append(&result, value_make_string(tmp));
+        }
+        return result;
+    }
+    if (arg.type == VALUE_DICT)
+    {
+        Value result = list_create();
+        for (int i = 0; i < arg.data.dict_val.count; i++)
+        {
+            list_append(&result, value_make_string(arg.data.dict_val.keys[i]));
+        }
+        return result;
+    }
+
+    fprintf(stderr, "Error: cannot convert to list\n");
+    return value_make_null();
+}
+
 Value builtin_len(Value *args, int arg_count)
 {
     if (arg_count != 1)

@@ -199,6 +199,14 @@ void env_pop_scope(Environment* env) {
 
 void env_define(Environment* env, char* name, Value val) {
     SymbolTable* scope = &env->scopes[env->scope_count - 1];
+
+    for (int i = 0; i < scope->count; i++) {
+        if (strcmp(scope->symbols[i].name, name) == 0) {
+            value_free(scope->symbols[i].value);
+            scope->symbols[i].value = val;
+            return;
+        }
+    }
     
     if (scope->count >= scope->capacity) {
         scope->capacity *= 2;
@@ -375,4 +383,32 @@ Value dict_get(Value dict, char* key) {
     }
     
     return value_make_null();
+}
+
+Value* dict_get_ref(Value* dict, char* key, bool create_if_missing) {
+    if (!dict || dict->type != VALUE_DICT) return NULL;
+
+    for (int i = 0; i < dict->data.dict_val.count; i++) {
+        if (strcmp(dict->data.dict_val.keys[i], key) == 0) {
+            return &dict->data.dict_val.values[i];
+        }
+    }
+
+    if (!create_if_missing) {
+        return NULL;
+    }
+
+    if (dict->data.dict_val.count >= dict->data.dict_val.capacity) {
+        dict->data.dict_val.capacity *= 2;
+        dict->data.dict_val.keys = realloc(dict->data.dict_val.keys,
+                                           sizeof(char*) * dict->data.dict_val.capacity);
+        dict->data.dict_val.values = realloc(dict->data.dict_val.values,
+                                             sizeof(Value) * dict->data.dict_val.capacity);
+    }
+
+    int idx = dict->data.dict_val.count++;
+    dict->data.dict_val.keys[idx] = malloc(strlen(key) + 1);
+    strcpy(dict->data.dict_val.keys[idx], key);
+    dict->data.dict_val.values[idx] = value_make_null();
+    return &dict->data.dict_val.values[idx];
 }

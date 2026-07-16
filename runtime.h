@@ -119,5 +119,6 @@ void list_set(Value* list, int index, Value value);
 Value dict_create();
 void dict_set(Value* dict, char* key, Value value);
 Value dict_get(Value dict, char* key);
+Value* dict_get_ref(Value* dict, char* key, bool create_if_missing);
 
 #endif
