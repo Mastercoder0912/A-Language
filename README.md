@@ -1,13 +1,43 @@
 # .a Programming Language
 
-`.a` is an interpreted, object-oriented programming language written in C. It was designed to be simple enough for beginners while still supporting modern programming concepts such as classes, functions, loops, structures, file I/O, and modules.
+**.a** is an educational, interpreted programming language written entirely in C. It is designed to make learning programming easier by reducing unnecessary syntax while still supporting modern programming concepts such as classes, functions, modules, collections, file I/O, and object-oriented programming.
 
-The goal of `.a` is to help students and educators focus on learning programming concepts instead of struggling with complex syntax.
+Beyond being beginner-friendly, **.a** also serves as a complete interpreter implementation, demonstrating every major stage of language execution—from lexing and parsing to runtime interpretation.
 
 ---
-## Please star or share this to help others join the world of programming
 
-## Features
+## In Action
+
+```console
+$ git clone https://github.com/Mastercoder0912/A-Language.git
+Cloning into 'A-Language'...
+
+$ cd A-Language
+
+$ make install
+Building .a...
+Build complete.
+
+$ arun examples/hello.a
+Hello, World!
+```
+
+> **Coming soon:** An animated terminal demo powered by Asciinema.
+
+---
+
+## Who is .a for?
+
+- Students learning programming fundamentals
+- Educators teaching introductory computer science
+- Developers interested in interpreter implementation
+- Anyone curious about programming language design
+
+---
+
+# Features
+
+## Language Features
 
 - Easy-to-read syntax inspired by Python and Java
 - Object-Oriented Programming (Classes)
@@ -16,40 +46,62 @@ The goal of `.a` is to help students and educators focus on learning programming
 - Variables and constants
 - Loops and conditionals
 - Lists and Dictionaries
-- File Input/Output
-- Module importing
-- Built-in standard library
 - String interpolation (F-Strings)
-- Arithmetic, including exponentiation
+- Arithmetic (including exponentiation)
 - Pointer support
+
+## Runtime Features
+
+- Module importing
+- File Input/Output
+- Built-in standard library
+
+## Implementation
+
 - Written entirely in C
+- Recursive Descent Parser
+- Abstract Syntax Tree (AST)
+- Tree-walk Interpreter
 
 ---
-## Installing
 
-1. Install via git using the command 
-``` bash
+# Installing
+
+Clone the repository:
+
+```bash
 git clone https://github.com/Mastercoder0912/A-Language.git
 ```
 
-3. Make a fresh compile
-``` bash
+Move into the project:
+
+```bash
+cd A-Language
+```
+
+Compile and install:
+
+```bash
 make install
 ```
-4. Enjoy or test by running
-```
+
+Run your first program:
+
+```bash
 arun examples/hello.a
 ```
 
-## Building
+---
 
-Compile the interpreter using:
+# Building
+
+Compile the interpreter manually:
 
 ```bash
 make build
 ```
 
-This creates the interpreter executable:
+This creates:
 
 ```text
 arun
@@ -57,9 +109,9 @@ arun
 
 ---
 
-## Running Programs
+# Running Programs
 
-Execute a `.a` program using:
+Execute any `.a` program using:
 
 ```bash
 arun program.a
@@ -73,27 +125,7 @@ arun examples/hello.a
 
 ---
 
-## Testing
-
-Run the test suite:
-
-```bash
-make test
-```
-
----
-
-## Cleaning
-
-Remove compiled files:
-
-```bash
-make clean
-```
-
----
-
-## Hello World
+# Hello, World!
 
 ```a
 print("Hello, World!")
@@ -101,7 +133,7 @@ print("Hello, World!")
 
 ---
 
-## Example
+# Quick Example
 
 ```a
 const PI = 3.14159
@@ -130,46 +162,47 @@ d.speak()
 
 ---
 
-## Why .a?
+# Why .a?
 
 Many programming languages are designed for professional software development. While powerful, they can be intimidating for new programmers.
 
-`.a` was created to provide a language that is:
+.a was created to help students focus on learning programming concepts rather than struggling with complicated syntax.
+
+It aims to be:
 
 - Easy to read
 - Easy to write
 - Consistent
-- Educational
-- Modern enough for real programming projects
+- Beginner-friendly
+- Powerful enough for meaningful projects
+- A practical example of interpreter design
 
-The emphasis is on understanding programming concepts without unnecessary syntax getting in the way.
-
----
-
-## Project Goals
-
-- Help students learn programming fundamentals.
-- Provide educators with a clean teaching language.
-- Offer a familiar syntax for users coming from Python, Java, or C.
-- Demonstrate how an interpreter works from lexer to runtime.
+Whether you're learning your first language or studying how interpreters work internally, **.a** provides a straightforward learning experience.
 
 ---
 
-## Architecture
+# Project Goals
 
-`.a` follows a traditional interpreter pipeline:
+- Help students learn programming fundamentals
+- Provide educators with a clean teaching language
+- Offer familiar syntax for users coming from Python, Java, or C
+- Demonstrate how an interpreter works from lexer to runtime
 
-```
+---
+
+# Architecture
+
+```text
 Source (.a)
       │
       ▼
- Lexer
+   Lexer
       │
       ▼
- Parser
+   Parser
       │
       ▼
- Abstract Syntax Tree (AST)
+Abstract Syntax Tree (AST)
       │
       ▼
  Interpreter
@@ -180,22 +213,54 @@ Source (.a)
 
 ---
 
-## Project Status
+# Roadmap
 
-Current features include:
+## Completed
 
 - Lexer
 - Recursive Descent Parser
-- Abstract Syntax Tree (AST)
+- Abstract Syntax Tree
 - Runtime Environment
-- Interpreter
-- Standard Library
+- Object-Oriented Programming
 - Module Imports
 - File I/O
+- Standard Library
+
+## Planned
+
+- Garbage Collection
+- Multi-language Processing
+- Additional Low-level Capabilities
+- Expanded Standard Library
 
 ---
 
-## License
+# Testing
+
+Run the test suite:
+
+```bash
+make test
+```
+
+---
+
+# Cleaning
+
+Remove compiled files:
+
+```bash
+make clean
+```
+
+---
+
+# Support the Project
+
+If you find **.a** interesting or useful, consider giving the repository a ⭐ or sharing it with others. Every bit of support helps more people discover the project.
+
+---
+
+# License
 
 This project is open for learning, experimentation, and educational use.
-
