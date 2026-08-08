@@ -1109,6 +1109,11 @@ Value eval_unary_op(ASTNode *node, Environment *env)
             return value_make_int(-val.data.int_val);
         }
     }
+    else if (op == 54)
+    {
+        Value val = eval_expression(unop->operand, env);
+        return value_make_bool(!value_is_truthy(val));
+    }
     else if (op == 107)
     {
         if (unop->operand->type == AST_IDENTIFIER_TYPE)
@@ -1978,6 +1983,75 @@ Value eval_class_instantiation(char *class_name, Value *args, int arg_count, Env
     return instance_value;
 }
 
+static int value_to_int_like(Value value, int *ok)
+{
+    switch (value.type)
+    {
+    case VALUE_INT:
+        *ok = 1;
+        return value.data.int_val;
+    case VALUE_BYTE:
+        *ok = 1;
+        return value.data.byte_val;
+    case VALUE_BOOL:
+        *ok = 1;
+        return value.data.bool_val ? 1 : 0;
+    default:
+        *ok = 0;
+        return 0;
+    }
+}
+
+static Value apply_assignment_operator(Value current, Value right, int op)
+{
+    if (op == 13)
+    {
+        return right;
+    }
+
+    if (op == 109)
+    {
+        if (current.type == VALUE_STRING || right.type == VALUE_STRING)
+        {
+            char *left_str = value_to_string(current);
+            char *right_str = value_to_string(right);
+            char *result = malloc(strlen(left_str) + strlen(right_str) + 1);
+            strcpy(result, left_str);
+            strcat(result, right_str);
+            Value combined = value_make_string(result);
+            free(left_str);
+            free(right_str);
+            free(result);
+            return combined;
+        }
+
+        int left_ok = 0;
+        int right_ok = 0;
+        int left = value_to_int_like(current, &left_ok);
+        int rhs = value_to_int_like(right, &right_ok);
+        if (left_ok && right_ok)
+        {
+            return value_make_int(left + rhs);
+        }
+        return right;
+    }
+
+    if (op == 110)
+    {
+        int left_ok = 0;
+        int right_ok = 0;
+        int left = value_to_int_like(current, &left_ok);
+        int rhs = value_to_int_like(right, &right_ok);
+        if (left_ok && right_ok)
+        {
+            return value_make_int(left - rhs);
+        }
+        return right;
+    }
+
+    return right;
+}
+
 void eval_assignment(ASTNode *node, Environment *env)
 {
     if (node->type != AST_ASSIGNMENT_TYPE)
@@ -1989,11 +2063,25 @@ void eval_assignment(ASTNode *node, Environment *env)
     if (assignment->target->type == AST_IDENTIFIER_TYPE)
     {
         char *var_name = assignment->target->data.identifier.value;
-        if (!env_exists(env, var_name) && set_this_field(env, var_name, right_val))
+        int has_local = env_exists(env, var_name);
+        int has_field = 0;
+        Value current_val = value_make_null();
+
+        if (has_local)
+        {
+            current_val = env_get(env, var_name);
+        }
+        else
+        {
+            current_val = get_this_field(env, var_name, &has_field);
+        }
+
+        Value assigned = apply_assignment_operator(current_val, right_val, assignment->op);
+        if (!has_local && has_field && set_this_field(env, var_name, assigned))
         {
             return;
         }
-        env_set(env, var_name, right_val);
+        env_set(env, var_name, assigned);
     }
     else if (assignment->target->type == AST_MEMBER_ACCESS_TYPE)
     {
@@ -2005,8 +2093,10 @@ void eval_assignment(ASTNode *node, Environment *env)
             int index = class_field_index(instance, access->member);
             if (index >= 0)
             {
+                Value current = instance->fields[index];
+                Value assigned = apply_assignment_operator(current, right_val, assignment->op);
                 value_free(instance->fields[index]);
-                instance->fields[index] = right_val;
+                instance->fields[index] = assigned;
             }
         }
     }
@@ -2017,12 +2107,20 @@ void eval_assignment(ASTNode *node, Environment *env)
         Value index = eval_expression(access->index, env);
         if (collection && collection->type == VALUE_LIST && index.type == VALUE_INT)
         {
-            list_set(collection, index.data.int_val, right_val);
+            int i = index.data.int_val;
+            if (i >= 0 && i < collection->data.list_val.count)
+            {
+                Value current = collection->data.list_val.elements[i];
+                Value assigned = apply_assignment_operator(current, right_val, assignment->op);
+                list_set(collection, i, assigned);
+            }
         }
         else if (collection && collection->type == VALUE_DICT)
         {
             char *key = value_to_string(index);
-            dict_set(collection, key, right_val);
+            Value current = dict_get(*collection, key);
+            Value assigned = apply_assignment_operator(current, right_val, assignment->op);
+            dict_set(collection, key, assigned);
             free(key);
         }
     }
@@ -2463,6 +2561,69 @@ Value eval_method_call(ASTNode *node, Environment *env)
             return json_custom_decode_value(payload, type_name, env);
         }
 
+        Value member_value = dict_get(obj, method_name);
+        if (member_value.type == VALUE_BUILTIN)
+        {
+            Value *args = malloc(sizeof(Value) * call->argument_count);
+            for (int i = 0; i < call->argument_count; i++)
+            {
+                args[i] = eval_expression(call->arguments[i], env);
+            }
+            Value result = member_value.data.builtin_fn(args, call->argument_count);
+            free(args);
+            return result;
+        }
+        if (member_value.type == VALUE_FUNCTION)
+        {
+            FunctionValue *func = &member_value.data.function_val;
+            if (!func->body || func->body->type != AST_FUNCTION_DECLARATION_TYPE)
+            {
+                return value_make_null();
+            }
+
+            AST_FUNCTION_DECLARATION *func_decl = &func->body->data.function_declaration;
+            Value *args = malloc(sizeof(Value) * call->argument_count);
+            for (int i = 0; i < call->argument_count; i++)
+            {
+                args[i] = eval_expression(call->arguments[i], env);
+            }
+
+            env_push_scope(func->closure);
+            for (int i = 0; i < func_decl->parameter_count && i < call->argument_count; i++)
+            {
+                ASTNode *param = func_decl->parameters[i];
+                if (param->type == AST_VARIABLE_DECLARATION_TYPE)
+                {
+                    env_define(func->closure, param->data.variable_declaration.name, args[i]);
+                }
+            }
+            for (int i = call->argument_count; i < func_decl->parameter_count; i++)
+            {
+                ASTNode *param = func_decl->parameters[i];
+                if (param->type == AST_VARIABLE_DECLARATION_TYPE && param->data.variable_declaration.init_value)
+                {
+                    Value default_val = eval_expression(param->data.variable_declaration.init_value, func->closure);
+                    env_define(func->closure, param->data.variable_declaration.name, default_val);
+                }
+            }
+
+            return_flag.is_return = 0;
+            ASTNode body_node;
+            body_node.type = AST_BLOCK_TYPE;
+            body_node.data.block = *func_decl->body;
+            eval_statement(&body_node, func->closure);
+            Value result = return_flag.return_value;
+            return_flag.is_return = 0;
+            env_pop_scope(func->closure);
+            free(args);
+            return result;
+        }
+        if (member_value.type != VALUE_NULL)
+        {
+            fprintf(stderr, "Error: module member '%s' is not callable\n", method_name);
+            return value_make_null();
+        }
+
         fprintf(stderr, "Error: dict has no method '%s'\n", method_name);
         return value_make_null();
     }
@@ -2650,6 +2811,45 @@ void register_builtins(Environment *env)
 
     Value json_module = dict_create();
     env_define(env, "json", json_module);
+
+    Value os_module = dict_create();
+
+    Value os_getcwd_fn;
+    os_getcwd_fn.type = VALUE_BUILTIN;
+    os_getcwd_fn.data.builtin_fn = os_getcwd;
+    dict_set(&os_module, "getcwd", os_getcwd_fn);
+
+    Value os_chdir_fn;
+    os_chdir_fn.type = VALUE_BUILTIN;
+    os_chdir_fn.data.builtin_fn = os_chdir;
+    dict_set(&os_module, "chdir", os_chdir_fn);
+
+    Value os_listdir_fn;
+    os_listdir_fn.type = VALUE_BUILTIN;
+    os_listdir_fn.data.builtin_fn = os_listdir;
+    dict_set(&os_module, "listdir", os_listdir_fn);
+
+    Value os_exists_fn;
+    os_exists_fn.type = VALUE_BUILTIN;
+    os_exists_fn.data.builtin_fn = os_exists;
+    dict_set(&os_module, "exists", os_exists_fn);
+
+    Value os_join_fn;
+    os_join_fn.type = VALUE_BUILTIN;
+    os_join_fn.data.builtin_fn = os_join;
+    dict_set(&os_module, "join", os_join_fn);
+
+    Value os_exec_fn;
+    os_exec_fn.type = VALUE_BUILTIN;
+    os_exec_fn.data.builtin_fn = os_exec;
+    dict_set(&os_module, "exec", os_exec_fn);
+
+    Value os_environ_fn;
+    os_environ_fn.type = VALUE_BUILTIN;
+    os_environ_fn.data.builtin_fn = os_environ;
+    dict_set(&os_module, "environ", os_environ_fn);
+
+    env_define(env, "os", os_module);
 }
 
 Value eval_f_string(ASTNode *node, Environment *env)

@@ -3,6 +3,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <errno.h>
+#include <limits.h>
+#include <sys/stat.h>
 
 typedef struct
 {
@@ -132,13 +135,20 @@ static void record_current(const char *value)
 
 #if defined(_WIN32) || defined(_WIN64)
 #include <direct.h>
+#include <io.h>
+#include <windows.h>
 #define CHDIR _chdir
-#define getcwd getcwd_win
-#define getcwd_win _getcwd
+#define GETCWD _getcwd
+#define PATH_SEPARATOR '\\'
+#define ACCESS _access
 #else
 #include <unistd.h>
 #include <dirent.h>
 #define CHDIR chdir
+#define GETCWD getcwd
+#define PATH_SEPARATOR '/'
+#define ACCESS access
+extern char **environ;
 #endif
 
 Value builtin_print(Value *args, int arg_count)
@@ -535,10 +545,14 @@ Value builtin_queue_is_empty(Value *args, int arg_count)
 
 Value os_getcwd(Value *args, int arg_count)
 {
+#if defined(_WIN32) || defined(_WIN64)
+    char cwd[MAX_PATH];
+#else
+    char cwd[1024];
+#endif
     (void)args;
     (void)arg_count;
-    char cwd[1024];
-    char *result = getcwd(cwd, sizeof(cwd));
+    char *result = GETCWD(cwd, sizeof(cwd));
     if (result == NULL)
     {
         perror("getcwd() error");
@@ -549,9 +563,12 @@ Value os_getcwd(Value *args, int arg_count)
 
 Value os_chdir(Value *args, int arg_count)
 {
-    (void)args;
-    (void)arg_count;
-    /* TODO: change the current working directory for cross platform compatibility */
+    if (arg_count != 1 || args[0].type != VALUE_STRING)
+    {
+        fprintf(stderr, "Error: os.chdir() expects one path string\n");
+        return value_make_null();
+    }
+
     if (CHDIR(args[0].data.string_val) != 0)
     {
         perror("chdir() error");
@@ -562,12 +579,40 @@ Value os_chdir(Value *args, int arg_count)
 
 Value os_listdir(Value *args, int arg_count)
 {
-    (void)args;
-    (void)arg_count;
-
     Value result = list_create();
+    const char *path = ".";
+    if (arg_count == 1 && args[0].type == VALUE_STRING)
+    {
+        path = args[0].data.string_val;
+    }
+    else if (arg_count != 0)
+    {
+        fprintf(stderr, "Error: os.listdir() expects zero args or one path string\n");
+        return result;
+    }
 
-    DIR *dir = opendir(".");
+#if defined(_WIN32) || defined(_WIN64)
+    char search_path[MAX_PATH];
+    snprintf(search_path, sizeof(search_path), "%s\\*", path);
+    WIN32_FIND_DATAA file_data;
+    HANDLE handle = FindFirstFileA(search_path, &file_data);
+    if (handle == INVALID_HANDLE_VALUE)
+    {
+        return result;
+    }
+
+    do
+    {
+        if (strcmp(file_data.cFileName, ".") == 0 || strcmp(file_data.cFileName, "..") == 0)
+        {
+            continue;
+        }
+        list_append(&result, value_make_string(file_data.cFileName));
+    } while (FindNextFileA(handle, &file_data) != 0);
+
+    FindClose(handle);
+#else
+    DIR *dir = opendir(path);
     if (dir == NULL)
     {
         perror("opendir");
@@ -589,38 +634,138 @@ Value os_listdir(Value *args, int arg_count)
     }
 
     closedir(dir);
+#endif
 
     return result;
 }
 
 Value os_exists(Value *args, int arg_count)
 {
-    (void)args;
-    (void)arg_count;
-    /* TODO: check if the given path exists */
-    return value_make_bool(false);
+    if (arg_count != 1 || args[0].type != VALUE_STRING)
+    {
+        fprintf(stderr, "Error: os.exists() expects one path string\n");
+        return value_make_bool(false);
+    }
+
+    return value_make_bool(ACCESS(args[0].data.string_val, 0) == 0);
 }
 
 Value os_join(Value *args, int arg_count)
 {
-    (void)args;
-    (void)arg_count;
-    /* TODO */
-    return value_make_null();
+    if (arg_count < 2)
+    {
+        fprintf(stderr, "Error: os.join() expects at least two path strings\n");
+        return value_make_null();
+    }
+
+    size_t total = 1;
+    for (int i = 0; i < arg_count; i++)
+    {
+        if (args[i].type != VALUE_STRING)
+        {
+            fprintf(stderr, "Error: os.join() expects string arguments\n");
+            return value_make_null();
+        }
+        total += strlen(args[i].data.string_val) + 1;
+    }
+
+    char *result = malloc(total);
+    if (!result)
+    {
+        return value_make_null();
+    }
+    result[0] = '\0';
+
+    for (int i = 0; i < arg_count; i++)
+    {
+        const char *part = args[i].data.string_val;
+        if (i == 0)
+        {
+            strcpy(result, part);
+            continue;
+        }
+
+        size_t len = strlen(result);
+        int result_ends_sep = (len > 0 && (result[len - 1] == '/' || result[len - 1] == '\\'));
+        while (*part == '/' || *part == '\\')
+        {
+            part++;
+        }
+
+        if (!result_ends_sep)
+        {
+            size_t offset = strlen(result);
+            result[offset] = PATH_SEPARATOR;
+            result[offset + 1] = '\0';
+        }
+        strcat(result, part);
+    }
+
+    Value out = value_make_string(result);
+    free(result);
+    return out;
 }
 
 Value os_exec(Value *args, int arg_count)
 {
-    (void)args;
-    (void)arg_count;
-    /* TODO */
-    return value_make_null();
+    if (arg_count != 1 || args[0].type != VALUE_STRING)
+    {
+        fprintf(stderr, "Error: os.exec() expects one command string\n");
+        return value_make_null();
+    }
+
+    int rc = system(args[0].data.string_val);
+    return value_make_int(rc);
 }
 
 Value os_environ(Value *args, int arg_count)
 {
     (void)args;
-    (void)arg_count;
-    /* TODO */
-    return value_make_null();
+    if (arg_count != 0)
+    {
+        fprintf(stderr, "Error: os.environ() expects no arguments\n");
+        return value_make_null();
+    }
+
+    Value env_map = dict_create();
+#if defined(_WIN32) || defined(_WIN64)
+    LPCH env_strings = GetEnvironmentStringsA();
+    if (!env_strings)
+    {
+        return env_map;
+    }
+
+    for (LPCH current = env_strings; *current != '\0'; current += strlen(current) + 1)
+    {
+        char *equal = strchr(current, '=');
+        if (!equal || equal == current)
+        {
+            continue;
+        }
+        size_t key_len = (size_t)(equal - current);
+        char *key = malloc(key_len + 1);
+        strncpy(key, current, key_len);
+        key[key_len] = '\0';
+        dict_set(&env_map, key, value_make_string(equal + 1));
+        free(key);
+    }
+    FreeEnvironmentStringsA(env_strings);
+#else
+    for (char **entry = environ; entry && *entry; entry++)
+    {
+        char *equal = strchr(*entry, '=');
+        if (!equal || equal == *entry)
+        {
+            continue;
+        }
+
+        size_t key_len = (size_t)(equal - *entry);
+        char *key = malloc(key_len + 1);
+        strncpy(key, *entry, key_len);
+        key[key_len] = '\0';
+        dict_set(&env_map, key, value_make_string(equal + 1));
+        free(key);
+    }
+#endif
+    return env_map;
 }
