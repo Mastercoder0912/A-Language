@@ -391,6 +391,135 @@ print("test: comments")
 print("expected: comments work")
 print("current: comments work")
 
+print("test: logical not")
+print("expected: False")
+print("current: " + string(!True))
+
+print("test: lowercase true literal")
+print("expected: True")
+bool lowercase_true = true
+print("current: " + string(lowercase_true))
+
+print("test: += assignment")
+print("expected: 7")
+int plus_eq_value = 5
+plus_eq_value += 2
+print("current: " + string(plus_eq_value))
+
+print("test: -= assignment")
+print("expected: 5")
+plus_eq_value -= 2
+print("current: " + string(plus_eq_value))
+
+print("test: ++ increment")
+print("expected: 6")
+plus_eq_value++
+print("current: " + string(plus_eq_value))
+
+print("test: -- decrement")
+print("expected: 5")
+plus_eq_value--
+print("current: " + string(plus_eq_value))
+
+print("test: cast syntax int")
+print("expected: 12")
+int cast_int_value = int("12")
+print("current: " + string(cast_int_value))
+
+print("test: else if")
+print("expected: else-if branch")
+if False {
+    print("current: if branch")
+}
+else if True {
+    print("current: else-if branch")
+}
+else {
+    print("current: else branch")
+}
+
+print("test: conditional loop")
+print("expected: 3")
+int conditional_count = 0
+loop(conditional_count < 3) {
+    conditional_count += 1
+}
+print("current: " + string(conditional_count))
+
+print("test: single-line loop with colon")
+print("expected: 2")
+int line_loop_count = 0
+loop(line_loop_count < 2): line_loop_count += 1
+print("current: " + string(line_loop_count))
+
+print("test: queue fifo remove order")
+print("expected: first")
+q = queue_create(0)
+queue_add(q, "first", 0)
+queue_add(q, "second", 0)
+print("current: " + string(queue_remove(q)))
+
+print("test: queue priority peek")
+print("expected: high")
+pq = queue_create(1)
+queue_add(pq, "low", 1)
+queue_add(pq, "high", 9)
+print("current: " + string(queue_peek(pq)))
+
+print("test: queue is empty")
+print("expected: False")
+print("current: " + string(queue_is_empty(pq)))
+
+print("test: json dumps")
+print("expected: True")
+print("current: " + string(len(json.dumps({"only": 1})) > 0))
+
+print("test: json loads")
+print("expected: 3")
+dict loaded_json = json.loads(json.dumps({"n": 3}))
+print("current: " + string(loaded_json.get("n")))
+
+print("test: json dump/load file")
+print("expected: 8")
+json.dump("tmp_json_test.json", {"k": 8})
+dict loaded_from_file = json.load("tmp_json_test.json")
+print("current: " + string(loaded_from_file.get("k")))
+
+print("test: os.getcwd not empty")
+print("expected: True")
+print("current: " + string(len(os.getcwd()) > 0))
+
+print("test: os.exists current file")
+print("expected: True")
+print("current: " + string(os.exists("test_full.a")))
+
+print("test: os.join + exists")
+print("expected: True")
+string joined_test_path = os.join(os.getcwd(), "test_full.a")
+print("current: " + string(os.exists(joined_test_path)))
+
+print("test: os.listdir has entries")
+print("expected: True")
+print("current: " + string(len(os.listdir()) > 0))
+
+print("test: os.environ has values")
+print("expected: True")
+print("current: " + string(len(os.environ().keys()) > 0))
+
+print("test: os.exec returns status")
+print("expected: True")
+print("current: " + string(os.exec("echo os_exec_test") >= 0))
+
+import test_module as tm
+
+print("test: import module variable")
+print("expected: 11")
+print("current: " + string(tm.module_number))
+
+print("test: import module function call")
+print("expected: 9")
+print("current: " + string(tm.module_add(4, 5)))
+
 print("test: complete")
 print("expected: all current feature checks printed")
 print("current: all current feature checks printed")

@@ -120,6 +120,49 @@ Token next_token(Lexer *lexer)
             continue;
         }
 
+        if (current_char == 'f' && lexer->source[lexer->position + 1] == '"')
+        {
+            token.type = TOKEN_F_STRING;
+            lexer->position += 2;
+            lexer->column += 2;
+            int start_position = lexer->position;
+
+            while (lexer->source[lexer->position] != '"' && lexer->source[lexer->position] != '\0')
+            {
+                if (lexer->source[lexer->position] == '\\' && lexer->source[lexer->position + 1] != '\0')
+                {
+                    lexer->position += 2;
+                    lexer->column += 2;
+                    continue;
+                }
+                if (lexer->source[lexer->position] == '\n')
+                {
+                    lexer->line++;
+                    lexer->column = 1;
+                }
+                else
+                {
+                    lexer->column++;
+                }
+                lexer->position++;
+            }
+
+            int length = lexer->position - start_position;
+            token.value = (char *)malloc(length + 1);
+            for (int i = 0; i < length; i++)
+            {
+                token.value[i] = lexer->source[start_position + i];
+            }
+            token.value[length] = '\0';
+
+            if (lexer->source[lexer->position] == '"')
+            {
+                lexer->position++;
+                lexer->column++;
+            }
+            return token;
+        }
+
         if (current_char == '"')
         {
             token.type = 16;
@@ -224,6 +267,10 @@ Token next_token(Lexer *lexer)
                 token.type = 29;
             else if (keyword_match(lexer->source, lexer->position, "False", 5))
                 token.type = 30;
+            else if (keyword_match(lexer->source, lexer->position, "true", 4))
+                token.type = 29;
+            else if (keyword_match(lexer->source, lexer->position, "false", 5))
+                token.type = 30;
             else if (keyword_match(lexer->source, lexer->position, "list", 4))
                 token.type = 31;
             else if (keyword_match(lexer->source, lexer->position, "dict", 4))
@@ -244,6 +291,8 @@ Token next_token(Lexer *lexer)
                 token.type = 39;
             else if (keyword_match(lexer->source, lexer->position, "bool", 4))
                 token.type = 40;
+            else if (keyword_match(lexer->source, lexer->position, "byte", 4))
+                token.type = TOKEN_BYTE;
             else if (keyword_match(lexer->source, lexer->position, "const", 5))
                 token.type = 41;
             else if (keyword_match(lexer->source, lexer->position, "private", 7))
