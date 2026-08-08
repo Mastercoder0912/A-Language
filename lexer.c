@@ -36,57 +36,6 @@ static int keyword_match(const char *source, int pos, const char *keyword, int l
     return is_identifier_boundary(source[pos + length]);
 }
 
-static char *read_quoted_value(Lexer *lexer, char quote)
-{
-    lexer->position++;
-    lexer->column++;
-    int start_position = lexer->position;
-    int length = 0;
-
-    while (lexer->source[lexer->position] != quote && lexer->source[lexer->position] != '\0')
-    {
-        if (lexer->source[lexer->position] == '\\' && lexer->source[lexer->position + 1] != '\0')
-        {
-            lexer->position++;
-            lexer->column++;
-            length++;
-        }
-
-        if (lexer->source[lexer->position] == '\n')
-        {
-            lexer->line++;
-            lexer->column = 1;
-        }
-        else
-        {
-            lexer->column++;
-        }
-        lexer->position++;
-        length++;
-    }
-
-    char *value = (char *)malloc(length + 1);
-    int src = start_position;
-    int dst = 0;
-    while (dst < length)
-    {
-        if (lexer->source[src] == '\\' && lexer->source[src + 1] != '\0')
-        {
-            src++;
-        }
-        value[dst++] = lexer->source[src++];
-    }
-    value[dst] = '\0';
-
-    if (lexer->source[lexer->position] == quote)
-    {
-        lexer->position++;
-        lexer->column++;
-    }
-
-    return value;
-}
-
 Lexer *lexer_init(const char *source)
 {
     Lexer *lexer = (Lexer *)malloc(sizeof(Lexer));
@@ -171,27 +120,70 @@ Token next_token(Lexer *lexer)
             continue;
         }
 
-        if ((current_char == 'f' || current_char == 'F') && lexer->source[lexer->position + 1] == '"')
-        {
-            token.type = TOKEN_F_STRING;
-            lexer->position++;
-            lexer->column++;
-            token.value = read_quoted_value(lexer, '"');
-            return token;
-        }
-
         if (current_char == '"')
         {
-            token.type = TOKEN_STRING;
-            token.value = read_quoted_value(lexer, '"');
+            token.type = 16;
+            lexer->position++;
+            lexer->column++;
+            int start_position = lexer->position;
+
+            while (lexer->source[lexer->position] != '"' && lexer->source[lexer->position] != '\0')
+            {
+                if (lexer->source[lexer->position] == '\n')
+                {
+                    lexer->line++;
+                    lexer->column = 1;
+                }
+                else
+                {
+                    lexer->column++;
+                }
+                lexer->position++;
+            }
+
+            int length = lexer->position - start_position;
+            token.value = (char *)malloc(length + 1);
+            for (int i = 0; i < length; i++)
+            {
+                token.value[i] = lexer->source[start_position + i];
+            }
+            token.value[length] = '\0';
+
+            if (lexer->source[lexer->position] == '"')
+            {
+                lexer->position++;
+                lexer->column++;
+            }
             return token;
         }
 
         // Handle character literals
         if (current_char == '\'')
         {
-            token.type = TOKEN_CHAR_LITERAL;
-            token.value = read_quoted_value(lexer, '\'');
+            token.type = 25;
+            lexer->position++;
+            lexer->column++;
+            int start_position = lexer->position;
+
+            while (lexer->source[lexer->position] != '\'' && lexer->source[lexer->position] != '\0')
+            {
+                lexer->position++;
+                lexer->column++;
+            }
+
+            int length = lexer->position - start_position;
+            token.value = (char *)malloc(length + 1);
+            for (int i = 0; i < length; i++)
+            {
+                token.value[i] = lexer->source[start_position + i];
+            }
+            token.value[length] = '\0';
+
+            if (lexer->source[lexer->position] == '\'')
+            {
+                lexer->position++;
+                lexer->column++;
+            }
             return token;
         }
 
@@ -430,13 +422,8 @@ Token next_token(Lexer *lexer)
             return token;
         }
 
-        token.type = TOKEN_UNKNOWN;
-        token.value = (char *)malloc(2);
-        token.value[0] = current_char;
-        token.value[1] = '\0';
         lexer->position++;
         lexer->column++;
-        return token;
     }
 
     Token eof_token;
@@ -457,7 +444,7 @@ static const char *token_type_name(int type)
 {
     switch (type)
     {
-        case 1:
+    case 1:
         return "LEFT_PAREN";
     case 2:
         return "RIGHT_PAREN";
@@ -549,16 +536,10 @@ static const char *token_type_name(int type)
         return "COLON";
     case 46:
         return "PERCENT";
-    case 47:
-        return "AND";
     case 48:
         return "ARROW";
-    case 49:
-        return "OR";
     case 50:
         return "EOF";
-    case 51:
-        return "F_STRING";
     case 52:
         return "LESS";
     case 53:

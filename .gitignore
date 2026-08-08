@@ -19,5 +19,7 @@ example programs/output.txt
 plan.txt
 test_full.a
 test.a
+key.txt
 a-lang-vscode/INSTALL.md
 a-lang-vscode/SETUP.md
+updateInstaller.sh

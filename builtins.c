@@ -4,15 +4,180 @@
 #include <string.h>
 #include <math.h>
 
+typedef struct
+{
+    int active;
+    char *name;
+    char *expected;
+    char *current;
+    int seen_expected;
+    int seen_current;
+} TestHarnessState;
+
+static TestHarnessState test_harness = {0, NULL, NULL, NULL, 0, 0};
+static int test_total = 0;
+static int test_correct = 0;
+
+static char *duplicate_string(const char *text)
+{
+    if (!text)
+    {
+        return NULL;
+    }
+
+    size_t length = strlen(text);
+    char *copy = malloc(length + 1);
+    if (!copy)
+    {
+        return NULL;
+    }
+
+    strcpy(copy, text);
+    return copy;
+}
+
+static void reset_test_harness(void)
+{
+    free(test_harness.name);
+    free(test_harness.expected);
+    free(test_harness.current);
+    test_harness.name = NULL;
+    test_harness.expected = NULL;
+    test_harness.current = NULL;
+    test_harness.active = 0;
+    test_harness.seen_expected = 0;
+    test_harness.seen_current = 0;
+}
+
+static void finalize_test_case(void)
+{
+    if (!test_harness.active)
+    {
+        return;
+    }
+
+    if (test_harness.seen_expected && test_harness.seen_current)
+    {
+        test_total++;
+        if (test_harness.expected && test_harness.current && strcmp(test_harness.expected, test_harness.current) == 0)
+        {
+            test_correct++;
+        }
+        else
+        {
+            printf("FAIL: %s\n", test_harness.name ? test_harness.name : "unknown");
+            if (test_harness.expected)
+            {
+                printf("expected: %s\n", test_harness.expected);
+            }
+            if (test_harness.current)
+            {
+                printf("current: %s\n", test_harness.current);
+            }
+        }
+    }
+
+    reset_test_harness();
+}
+
+static void begin_test_case(const char *name)
+{
+    finalize_test_case();
+    test_harness.active = 1;
+    test_harness.name = duplicate_string(name);
+}
+
+static void record_expected(const char *value)
+{
+    if (!test_harness.active)
+    {
+        return;
+    }
+
+    free(test_harness.expected);
+    test_harness.expected = duplicate_string(value);
+    test_harness.seen_expected = 1;
+}
+
+static void record_current(const char *value)
+{
+    if (!test_harness.active)
+    {
+        return;
+    }
+
+    free(test_harness.current);
+    test_harness.current = duplicate_string(value);
+    test_harness.seen_current = 1;
+
+    test_total++;
+    if (test_harness.expected && test_harness.current && strcmp(test_harness.expected, test_harness.current) == 0)
+    {
+        test_correct++;
+    }
+    else
+    {
+        printf("FAIL: %s\n", test_harness.name ? test_harness.name : "unknown");
+        printf("expected: %s\n", test_harness.expected ? test_harness.expected : "");
+        printf("current: %s\n", test_harness.current ? test_harness.current : "");
+    }
+
+    if (test_harness.name && strcmp(test_harness.name, "complete") == 0)
+    {
+        printf("Score: %d/%d correct\n", test_correct, test_total);
+    }
+
+    reset_test_harness();
+}
+
+#if defined(_WIN32) || defined(_WIN64)
+#include <direct.h>
+#define CHDIR _chdir
+#define getcwd getcwd_win
+#define getcwd_win _getcwd
+#else
+#include <unistd.h>
+#include <dirent.h>
+#define CHDIR chdir
+#endif
+
 Value builtin_print(Value *args, int arg_count)
 {
     for (int i = 0; i < arg_count; i++)
     {
         char *str = value_to_string(args[i]);
+
+        if (strncmp(str, "test:", 5) == 0)
+        {
+            begin_test_case(str + 5);
+            free(str);
+            continue;
+        }
+
+        if (test_harness.active)
+        {
+            if (strncmp(str, "expected:", 9) == 0)
+            {
+                record_expected(str + 9);
+                free(str);
+                continue;
+            }
+            if (strncmp(str, "current:", 8) == 0)
+            {
+                record_current(str + 8);
+                free(str);
+                continue;
+            }
+        }
+
         printf("%s", str);
         free(str);
     }
-    printf("\n");
+
+    if (!test_harness.active)
+    {
+        printf("\n");
+    }
     return value_make_null();
 }
 
@@ -133,7 +298,8 @@ Value builtin_input(Value *args, int arg_count)
     }
 
     char *buffer = malloc(256);
-    if (!fgets(buffer, 256, stdin)) {
+    if (!fgets(buffer, 256, stdin))
+    {
         fprintf(stderr, "Error: failed to read input\n");
         return value_make_null();
     }
@@ -162,6 +328,8 @@ Value builtin_type(Value *args, int arg_count)
         return value_make_string("null");
     case VALUE_INT:
         return value_make_string("int");
+    case VALUE_BYTE:
+        return value_make_string("byte");
     case VALUE_STRING:
         return value_make_string("string");
     case VALUE_BOOL:
@@ -304,5 +472,155 @@ Value builtin_write_file(Value *args, int arg_count)
 
     fputs(contents, file);
     fclose(file);
+    return value_make_null();
+}
+
+Value builtin_queue_create(Value *args, int arg_count)
+{
+    if (arg_count != 1 || args[0].type != VALUE_INT)
+    {
+        fprintf(stderr, "Error: queue_create() expects one integer mode\n");
+        return value_make_null();
+    }
+
+    QueueMode mode = args[0].data.int_val == 0 ? QUEUE_MODE_FIFO : QUEUE_MODE_PRIORITY;
+    Queue *queue = queue_create(mode);
+    return value_make_queue(queue);
+}
+
+Value builtin_queue_add(Value *args, int arg_count)
+{
+    if (arg_count != 3 || args[0].type != VALUE_QUEUE || args[2].type != VALUE_INT)
+    {
+        fprintf(stderr, "Error: queue_add() expects a queue, value, and priority\n");
+        return value_make_null();
+    }
+
+    queue_add(args[0].data.queue_val, args[1], args[2].data.int_val);
+    return value_make_null();
+}
+
+Value builtin_queue_remove(Value *args, int arg_count)
+{
+    if (arg_count != 1 || args[0].type != VALUE_QUEUE)
+    {
+        fprintf(stderr, "Error: queue_remove() expects a queue\n");
+        return value_make_null();
+    }
+
+    return queue_remove(args[0].data.queue_val);
+}
+
+Value builtin_queue_peek(Value *args, int arg_count)
+{
+    if (arg_count != 1 || args[0].type != VALUE_QUEUE)
+    {
+        fprintf(stderr, "Error: queue_peek() expects a queue\n");
+        return value_make_null();
+    }
+
+    return queue_peek(args[0].data.queue_val);
+}
+
+Value builtin_queue_is_empty(Value *args, int arg_count)
+{
+    if (arg_count != 1 || args[0].type != VALUE_QUEUE)
+    {
+        fprintf(stderr, "Error: queue_is_empty() expects a queue\n");
+        return value_make_null();
+    }
+
+    return value_make_bool(queue_is_empty(args[0].data.queue_val));
+}
+
+Value os_getcwd(Value *args, int arg_count)
+{
+    (void)args;
+    (void)arg_count;
+    char cwd[1024];
+    char *result = getcwd(cwd, sizeof(cwd));
+    if (result == NULL)
+    {
+        perror("getcwd() error");
+        return value_make_null();
+    }
+    return value_make_string(cwd);
+}
+
+Value os_chdir(Value *args, int arg_count)
+{
+    (void)args;
+    (void)arg_count;
+    /* TODO: change the current working directory for cross platform compatibility */
+    if (CHDIR(args[0].data.string_val) != 0)
+    {
+        perror("chdir() error");
+        return value_make_null();
+    }
+    return value_make_null();
+}
+
+Value os_listdir(Value *args, int arg_count)
+{
+    (void)args;
+    (void)arg_count;
+
+    Value result = list_create();
+
+    DIR *dir = opendir(".");
+    if (dir == NULL)
+    {
+        perror("opendir");
+        return result;
+    }
+
+    struct dirent *entry;
+    while ((entry = readdir(dir)) != NULL)
+    {
+        if (strcmp(entry->d_name, ".") == 0 ||
+            strcmp(entry->d_name, "..") == 0)
+        {
+            continue;
+        }
+
+        Value filename = value_make_string(entry->d_name);
+
+        list_append(&result, filename);
+    }
+
+    closedir(dir);
+
+    return result;
+}
+
+Value os_exists(Value *args, int arg_count)
+{
+    (void)args;
+    (void)arg_count;
+    /* TODO: check if the given path exists */
+    return value_make_bool(false);
+}
+
+Value os_join(Value *args, int arg_count)
+{
+    (void)args;
+    (void)arg_count;
+    /* TODO */
+    return value_make_null();
+}
+
+Value os_exec(Value *args, int arg_count)
+{
+    (void)args;
+    (void)arg_count;
+    /* TODO */
+    return value_make_null();
+}
+
+Value os_environ(Value *args, int arg_count)
+{
+    (void)args;
+    (void)arg_count;
+    /* TODO */
     return value_make_null();
 }

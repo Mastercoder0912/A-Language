@@ -67,6 +67,12 @@ Hello, World!
 
 # Installing
 
+## premade Interpreter
+```bash
+curl https://a-lang-installer-4deb1e2c5f3e.herokuapp.com/install/{linux, macos, or windows} | bash
+```
+
+## Source code / Make your self
 Clone the repository:
 
 ```bash

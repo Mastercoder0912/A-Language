@@ -42,7 +42,8 @@ static int is_builtin_type_token(int token_type) {
            token_type == 36 ||
            token_type == 38 ||
            token_type == 39 ||
-           token_type == 40;
+           token_type == 40 ||
+           token_type == TOKEN_BYTE;
 }
 
 static char* duplicate_text(const char* text) {
@@ -353,7 +354,8 @@ ASTNode* parse_postfix(Parser* parser) {
                     strcmp(potential_type.value, "string") == 0 ||
                     strcmp(potential_type.value, "float") == 0 ||
                     strcmp(potential_type.value, "bool") == 0 ||
-                    strcmp(potential_type.value, "char") == 0) {
+                    strcmp(potential_type.value, "char") == 0 ||
+                    strcmp(potential_type.value, "byte") == 0) {
                     is_type = 1;
                 }
                 
@@ -364,6 +366,7 @@ ASTNode* parse_postfix(Parser* parser) {
                     else if (strcmp(potential_type.value, "float") == 0) type_token = 38;
                     else if (strcmp(potential_type.value, "bool") == 0) type_token = 40;
                     else if (strcmp(potential_type.value, "char") == 0) type_token = 35;
+                    else if (strcmp(potential_type.value, "byte") == 0) type_token = TOKEN_BYTE;
                     
                     parser_advance(parser);
                     parser_advance(parser);
@@ -403,7 +406,8 @@ ASTNode* parse_unary(Parser* parser) {
          parser->current_token.type == 36 ||
          parser->current_token.type == 38 ||
          parser->current_token.type == 40 ||
-         parser->current_token.type == 35) &&
+         parser->current_token.type == 35 ||
+         parser->current_token.type == TOKEN_BYTE) &&
         parser->peek_token.type == 1) {
         int target_type = parser->current_token.type;
         parser_advance(parser);
@@ -963,7 +967,9 @@ ASTNode* parse_statement(Parser* parser) {
         case 34:
         case 40:
         case 35:
-        case 38: {
+        case 38:
+        case TOKEN_BYTE:
+        {
             if (parser->peek_token.type == 1) {
                 ASTNode* expr = parse_expression(parser);
                 if (parser->current_token.type == 7) {
@@ -1221,7 +1227,8 @@ ASTNode* parse_class_declaration(Parser* parser) {
                    parser->current_token.type == 40 ||
                    parser->current_token.type == 35 ||
                    parser->current_token.type == 37 ||
-                   parser->current_token.type == 38) {
+                   parser->current_token.type == 38 ||
+                   parser->current_token.type == TOKEN_BYTE) {
             
             int var_type = parser->current_token.type;
             Token type_name = parser->current_token;
@@ -1314,7 +1321,8 @@ ASTNode* parse_struct_declaration(Parser* parser) {
             parser->current_token.type == 40 ||
             parser->current_token.type == 35 ||
             parser->current_token.type == 37 ||
-            parser->current_token.type == 38) {
+            parser->current_token.type == 38 ||
+            parser->current_token.type == TOKEN_BYTE) {
             
             int field_type = parser->current_token.type;
             Token field_type_name = parser->current_token;

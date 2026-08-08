@@ -57,6 +57,7 @@ typedef enum {
     TOKEN_LESS = 52,
     TOKEN_GREATER = 53,
     TOKEN_BANG = 54,
+    TOKEN_BYTE = 55,
     TOKEN_INCREMENT = 107,
     TOKEN_DECREMENT = 108,
     TOKEN_PLUS_EQUAL = 109,

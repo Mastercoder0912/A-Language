@@ -7,6 +7,23 @@
 #include <string.h>
 #include <stddef.h>
 #include <math.h>
+#include <ctype.h>
+
+static char *duplicate_string(const char *text)
+{
+    if (!text)
+    {
+        return NULL;
+    }
+    size_t length = strlen(text);
+    char *copy = malloc(length + 1);
+    if (!copy)
+    {
+        return NULL;
+    }
+    strcpy(copy, text);
+    return copy;
+}
 
 typedef struct
 {
@@ -15,8 +32,429 @@ typedef struct
 } ReturnFlag;
 
 static ReturnFlag return_flag = {0, {0}};
+static Value copy_value(Value original);
 Value eval_method_call(ASTNode *node, Environment *env);
 Value eval_import_statement(ASTNode *node, Environment *env);
+
+static char *json_escape_string(const char *text)
+{
+    if (!text)
+    {
+        return duplicate_string("");
+    }
+
+    size_t len = strlen(text);
+    char *escaped = malloc(len * 2 + 1);
+    size_t out = 0;
+    for (size_t i = 0; i < len; i++)
+    {
+        char c = text[i];
+        if (c == '"' || c == '\\')
+        {
+            escaped[out++] = '\\';
+            escaped[out++] = c;
+        }
+        else
+        {
+            escaped[out++] = c;
+        }
+    }
+    escaped[out] = '\0';
+    return escaped;
+}
+
+static char *json_serialize(Value value, int depth)
+{
+    char *buffer = malloc(4096);
+    buffer[0] = '\0';
+
+    switch (value.type)
+    {
+    case VALUE_NULL:
+        strcpy(buffer, "null");
+        break;
+    case VALUE_INT:
+        sprintf(buffer, "%d", value.data.int_val);
+        break;
+    case VALUE_BOOL:
+        strcpy(buffer, value.data.bool_val ? "true" : "false");
+        break;
+    case VALUE_STRING:
+    {
+        char *escaped = json_escape_string(value.data.string_val);
+        sprintf(buffer, "\"%s\"", escaped);
+        free(escaped);
+        break;
+    }
+    case VALUE_LIST:
+    {
+        strcat(buffer, "[");
+        for (int i = 0; i < value.data.list_val.count; i++)
+        {
+            if (i > 0)
+            {
+                strcat(buffer, ", ");
+            }
+            char *item = json_serialize(value.data.list_val.elements[i], depth + 1);
+            strcat(buffer, item);
+            free(item);
+        }
+        strcat(buffer, "]");
+        break;
+    }
+    case VALUE_DICT:
+    {
+        strcat(buffer, "{");
+        for (int i = 0; i < value.data.dict_val.count; i++)
+        {
+            if (i > 0)
+            {
+                strcat(buffer, ", ");
+            }
+            char *escaped_key = json_escape_string(value.data.dict_val.keys[i]);
+            char *item = json_serialize(value.data.dict_val.values[i], depth + 1);
+            sprintf(buffer + strlen(buffer), "\"%s\": %s", escaped_key, item);
+            free(escaped_key);
+            free(item);
+        }
+        strcat(buffer, "}");
+        break;
+    }
+    default:
+        strcpy(buffer, "null");
+        break;
+    }
+
+    return buffer;
+}
+
+static Value json_parse_from_text(const char *text, int *index)
+{
+    while (text[*index] != '\0' && isspace((unsigned char)text[*index]))
+    {
+        (*index)++;
+    }
+
+    if (text[*index] == '\0')
+    {
+        return value_make_null();
+    }
+
+    if (text[*index] == '"')
+    {
+        (*index)++;
+        char *buffer = malloc(strlen(text) + 1);
+        int out = 0;
+        while (text[*index] != '\0' && text[*index] != '"')
+        {
+            if (text[*index] == '\\')
+            {
+                (*index)++;
+                if (text[*index] == '\0')
+                {
+                    break;
+                }
+                buffer[out++] = text[*index];
+                (*index)++;
+                continue;
+            }
+            buffer[out++] = text[*index];
+            (*index)++;
+        }
+        if (text[*index] == '"')
+        {
+            (*index)++;
+        }
+        buffer[out] = '\0';
+        return value_make_string(buffer);
+    }
+
+    if (text[*index] == '{')
+    {
+        (*index)++;
+        Value dict = dict_create();
+        while (text[*index] != '\0')
+        {
+            while (isspace((unsigned char)text[*index]))
+            {
+                (*index)++;
+            }
+            if (text[*index] == '}')
+            {
+                (*index)++;
+                break;
+            }
+
+            if (text[*index] != '"')
+            {
+                break;
+            }
+            Value key_val = json_parse_from_text(text, index);
+            char *key = value_to_string(key_val);
+            while (isspace((unsigned char)text[*index]))
+            {
+                (*index)++;
+            }
+            if (text[*index] != ':')
+            {
+                break;
+            }
+            (*index)++;
+            Value value = json_parse_from_text(text, index);
+            dict_set(&dict, key, value);
+            free(key);
+            while (isspace((unsigned char)text[*index]))
+            {
+                (*index)++;
+            }
+            if (text[*index] == ',')
+            {
+                (*index)++;
+                continue;
+            }
+            if (text[*index] == '}')
+            {
+                (*index)++;
+                break;
+            }
+            break;
+        }
+        return dict;
+    }
+
+    if (text[*index] == '[')
+    {
+        (*index)++;
+        Value list = list_create();
+        while (text[*index] != '\0')
+        {
+            while (isspace((unsigned char)text[*index]))
+            {
+                (*index)++;
+            }
+            if (text[*index] == ']')
+            {
+                (*index)++;
+                break;
+            }
+            Value item = json_parse_from_text(text, index);
+            list_append(&list, item);
+            while (isspace((unsigned char)text[*index]))
+            {
+                (*index)++;
+            }
+            if (text[*index] == ',')
+            {
+                (*index)++;
+                continue;
+            }
+            if (text[*index] == ']')
+            {
+                (*index)++;
+                break;
+            }
+            break;
+        }
+        return list;
+    }
+
+    if (strncmp(text + *index, "true", 4) == 0)
+    {
+        (*index) += 4;
+        return value_make_bool(true);
+    }
+    if (strncmp(text + *index, "false", 5) == 0)
+    {
+        (*index) += 5;
+        return value_make_bool(false);
+    }
+    if (strncmp(text + *index, "null", 4) == 0)
+    {
+        (*index) += 4;
+        return value_make_null();
+    }
+
+    char *end = NULL;
+    long number = strtol(text + *index, &end, 10);
+    if (end != text + *index)
+    {
+        (*index) = (int)(end - text);
+        return value_make_int((int)number);
+    }
+
+    return value_make_null();
+}
+
+static Value json_dumps_value(Value value)
+{
+    char *serialized = json_serialize(value, 0);
+    Value result = value_make_string(serialized);
+    free(serialized);
+    return result;
+}
+
+static Value json_loads_value(Value value)
+{
+    if (value.type != VALUE_STRING)
+    {
+        return value_make_null();
+    }
+
+    int index = 0;
+    Value parsed = json_parse_from_text(value.data.string_val, &index);
+    return parsed;
+}
+
+static Value json_load_value(Value value)
+{
+    if (value.type != VALUE_STRING)
+    {
+        return value_make_null();
+    }
+
+    FILE *file = fopen(value.data.string_val, "r");
+    if (!file)
+    {
+        fprintf(stderr, "Error: could not read JSON file '%s'\n", value.data.string_val);
+        return value_make_null();
+    }
+
+    fseek(file, 0, SEEK_END);
+    long size = ftell(file);
+    rewind(file);
+
+    char *buffer = malloc(size + 1);
+    fread(buffer, 1, size, file);
+    buffer[size] = '\0';
+    fclose(file);
+
+    int index = 0;
+    Value parsed = json_parse_from_text(buffer, &index);
+    free(buffer);
+    return parsed;
+}
+
+static Value json_dump_value(Value file_path, Value value)
+{
+    if (file_path.type != VALUE_STRING)
+    {
+        return value_make_null();
+    }
+
+    char *serialized = json_serialize(value, 0);
+    FILE *file = fopen(file_path.data.string_val, "w");
+    if (!file)
+    {
+        fprintf(stderr, "Error: could not write JSON file '%s'\n", file_path.data.string_val);
+        free(serialized);
+        return value_make_null();
+    }
+
+    fputs(serialized, file);
+    fclose(file);
+    free(serialized);
+    return value_make_null();
+}
+
+static Value json_custom_encode_value(Value value)
+{
+    if (value.type == VALUE_STRUCT)
+    {
+        Value result = dict_create();
+        StructValue *struct_val = value.data.struct_val;
+        for (int i = 0; i < struct_val->field_count; i++)
+        {
+            dict_set(&result, struct_val->field_names[i], copy_value(struct_val->fields[i]));
+        }
+        return result;
+    }
+
+    if (value.type == VALUE_CLASS_INSTANCE)
+    {
+        Value result = dict_create();
+        ClassInstanceValue *instance = value.data.class_instance_val;
+        for (int i = 0; i < instance->field_count; i++)
+        {
+            dict_set(&result, instance->field_names[i], copy_value(instance->fields[i]));
+        }
+        return result;
+    }
+
+    return copy_value(value);
+}
+
+static Value json_custom_decode_value(Value dict_value, Value type_name_value, Environment *env)
+{
+    if (dict_value.type != VALUE_DICT || type_name_value.type != VALUE_STRING)
+    {
+        return value_make_null();
+    }
+
+    Value target = env_get(env, type_name_value.data.string_val);
+    if (target.type == VALUE_STRUCT)
+    {
+        StructValue *struct_val = target.data.struct_val;
+        StructValue *instance = malloc(sizeof(StructValue));
+        instance->name = malloc(strlen(struct_val->name) + 1);
+        strcpy(instance->name, struct_val->name);
+        instance->field_count = struct_val->field_count;
+        instance->fields = malloc(sizeof(Value) * struct_val->field_count);
+        instance->field_names = malloc(sizeof(char *) * struct_val->field_count);
+        instance->field_private = malloc(sizeof(int) * struct_val->field_count);
+        for (int i = 0; i < struct_val->field_count; i++)
+        {
+            instance->field_names[i] = malloc(strlen(struct_val->field_names[i]) + 1);
+            strcpy(instance->field_names[i], struct_val->field_names[i]);
+            instance->field_private[i] = 0;
+            Value field_value = dict_get(dict_value, struct_val->field_names[i]);
+            instance->fields[i] = copy_value(field_value);
+        }
+        Value result;
+        result.type = VALUE_STRUCT;
+        result.data.struct_val = instance;
+        return result;
+    }
+
+    if (target.type == VALUE_CLASS_INSTANCE)
+    {
+        AST_CLASS_DECLARATION *class_decl = (AST_CLASS_DECLARATION *)target.data.class_instance_val;
+        ClassInstanceValue *instance = malloc(sizeof(ClassInstanceValue));
+        instance->class_name = malloc(strlen(class_decl->name) + 1);
+        strcpy(instance->class_name, class_decl->name);
+        instance->field_count = class_decl->private_variable_count + class_decl->public_variable_count;
+        instance->fields = malloc(sizeof(Value) * instance->field_count);
+        instance->field_names = malloc(sizeof(char *) * instance->field_count);
+        instance->field_private = malloc(sizeof(int) * instance->field_count);
+        instance->class_decl = class_decl;
+        int field_idx = 0;
+        for (int i = 0; i < class_decl->private_variable_count; i++)
+        {
+            AST_VARIABLE_DECLARATION *field = &class_decl->private_variables[i]->data.variable_declaration;
+            instance->field_names[field_idx] = malloc(strlen(field->name) + 1);
+            strcpy(instance->field_names[field_idx], field->name);
+            instance->field_private[field_idx] = 1;
+            Value field_value = dict_get(dict_value, field->name);
+            instance->fields[field_idx] = copy_value(field_value);
+            field_idx++;
+        }
+        for (int i = 0; i < class_decl->public_variable_count; i++)
+        {
+            AST_VARIABLE_DECLARATION *field = &class_decl->public_variables[i]->data.variable_declaration;
+            instance->field_names[field_idx] = malloc(strlen(field->name) + 1);
+            strcpy(instance->field_names[field_idx], field->name);
+            instance->field_private[field_idx] = 0;
+            Value field_value = dict_get(dict_value, field->name);
+            instance->fields[field_idx] = copy_value(field_value);
+            field_idx++;
+        }
+        Value result;
+        result.type = VALUE_CLASS_INSTANCE;
+        result.data.class_instance_val = instance;
+        return result;
+    }
+
+    return value_make_null();
+}
 
 static int class_field_index(ClassInstanceValue *instance, char *name)
 {
@@ -123,6 +561,8 @@ static Value copy_value(Value original)
         return value_make_null();
     case VALUE_INT:
         return value_make_int(original.data.int_val);
+    case VALUE_BYTE:
+        return value_make_byte(original.data.byte_val);
     case VALUE_STRING:
         return value_make_string(original.data.string_val);
     case VALUE_BOOL:
@@ -209,6 +649,143 @@ static Value copy_value(Value original)
     default:
         return value_make_null();
     }
+}
+
+static int values_equal(Value left, Value right)
+{
+    if (left.type != right.type)
+    {
+        return 0;
+    }
+
+    switch (left.type)
+    {
+    case VALUE_NULL:
+        return 1;
+    case VALUE_INT:
+        return left.data.int_val == right.data.int_val;
+    case VALUE_BYTE:
+        return left.data.byte_val == right.data.byte_val;
+    case VALUE_BOOL:
+        return left.data.bool_val == right.data.bool_val;
+    case VALUE_STRING:
+        return strcmp(left.data.string_val, right.data.string_val) == 0;
+    default:
+        return 0;
+    }
+}
+
+static char *replace_all_text(const char *source, const char *needle, const char *replacement)
+{
+    if (!source || !needle || !replacement || needle[0] == '\0')
+    {
+        char *copy = malloc(strlen(source ? source : "") + 1);
+        strcpy(copy, source ? source : "");
+        return copy;
+    }
+
+    int source_len = strlen(source);
+    int needle_len = strlen(needle);
+    int replacement_len = strlen(replacement);
+    int count = 0;
+
+    for (const char *p = source; (p = strstr(p, needle)) != NULL; p += needle_len)
+    {
+        count++;
+    }
+
+    int result_len = source_len + count * (replacement_len - needle_len);
+    char *result = malloc(result_len + 1);
+    char *out = result;
+    const char *p = source;
+    const char *next = NULL;
+
+    while ((next = strstr(p, needle)) != NULL)
+    {
+        int span = next - p;
+        memcpy(out, p, span);
+        out += span;
+        memcpy(out, replacement, replacement_len);
+        out += replacement_len;
+        p = next + needle_len;
+    }
+
+    strcpy(out, p);
+    return result;
+}
+
+static int count_substrings(const char *source, const char *needle)
+{
+    if (!source || !needle || needle[0] == '\0')
+    {
+        return 0;
+    }
+
+    int count = 0;
+    int needle_len = strlen(needle);
+    const char *p = source;
+
+    while ((p = strstr(p, needle)) != NULL)
+    {
+        count++;
+        p += needle_len;
+    }
+
+    return count;
+}
+
+static int compare_values(Value left, Value right)
+{
+    if ((left.type == VALUE_INT || left.type == VALUE_BYTE || left.type == VALUE_BOOL) &&
+        (right.type == VALUE_INT || right.type == VALUE_BYTE || right.type == VALUE_BOOL))
+    {
+        int left_num = left.type == VALUE_INT ? left.data.int_val : left.type == VALUE_BYTE ? left.data.byte_val
+                                                                                            : left.data.bool_val;
+        int right_num = right.type == VALUE_INT ? right.data.int_val : right.type == VALUE_BYTE ? right.data.byte_val
+                                                                                                : right.data.bool_val;
+        return left_num - right_num;
+    }
+
+    char *left_text = value_to_string(left);
+    char *right_text = value_to_string(right);
+    int result = strcmp(left_text, right_text);
+    free(left_text);
+    free(right_text);
+    return result;
+}
+
+static Value split_string(const char *text, const char *delimiter)
+{
+    Value result = list_create();
+
+    if (!delimiter || delimiter[0] == '\0')
+    {
+        char tmp[2] = {'\0', '\0'};
+        for (int i = 0; text[i] != '\0'; i++)
+        {
+            tmp[0] = text[i];
+            list_append(&result, value_make_string(tmp));
+        }
+        return result;
+    }
+
+    int delimiter_len = strlen(delimiter);
+    const char *start = text;
+    const char *next = NULL;
+
+    while ((next = strstr(start, delimiter)) != NULL)
+    {
+        int part_len = next - start;
+        char *part = malloc(part_len + 1);
+        memcpy(part, start, part_len);
+        part[part_len] = '\0';
+        list_append(&result, value_make_string(part));
+        free(part);
+        start = next + delimiter_len;
+    }
+
+    list_append(&result, value_make_string((char *)start));
+    return result;
 }
 
 static char *duplicate_path(const char *module_name)
@@ -344,6 +921,8 @@ Value eval_literal(ASTNode *node)
         return value_make_bool(false);
     case 24:
         return value_make_null();
+    case 25:
+        return value_make_string(lit->value);
     default:
         return value_make_null();
     }
@@ -500,11 +1079,11 @@ Value eval_binary_op(ASTNode *node, Environment *env)
             return value_make_bool(left.data.int_val >= right.data.int_val);
         }
     }
-    else if (op == 115)
+    else if (op == 115 || op == 47)
     {
         return value_make_bool(value_is_truthy(left) && value_is_truthy(right));
     }
-    else if (op == 116)
+    else if (op == 116 || op == 49)
     {
         return value_make_bool(value_is_truthy(left) || value_is_truthy(right));
     }
@@ -580,6 +1159,10 @@ Value eval_cast(ASTNode *node, Environment *env)
         {
             return value;
         }
+        if (value.type == VALUE_BYTE)
+        {
+            return value_make_int(value.data.byte_val);
+        }
         if (value.type == VALUE_BOOL)
         {
             return value_make_int(value.data.bool_val ? 1 : 0);
@@ -598,6 +1181,24 @@ Value eval_cast(ASTNode *node, Environment *env)
     }
     case 40:
         return value_make_bool(value_is_truthy(value));
+    case TOKEN_BYTE:
+        if (value.type == VALUE_BYTE)
+        {
+            return value;
+        }
+        if (value.type == VALUE_INT)
+        {
+            return value_make_byte(value.data.int_val);
+        }
+        if (value.type == VALUE_BOOL)
+        {
+            return value_make_byte(value.data.bool_val ? 1 : 0);
+        }
+        if (value.type == VALUE_STRING)
+        {
+            return value_make_byte(atoi(value.data.string_val));
+        }
+        break;
     case 35:
         if (value.type == VALUE_STRING && value.data.string_val && value.data.string_val[0] != '\0')
         {
@@ -614,6 +1215,10 @@ Value eval_cast(ASTNode *node, Environment *env)
         if (value.type == VALUE_INT)
         {
             return value;
+        }
+        if (value.type == VALUE_BYTE)
+        {
+            return value_make_int(value.data.byte_val);
         }
         if (value.type == VALUE_BOOL)
         {
@@ -731,6 +1336,38 @@ Value eval_function_call(ASTNode *node, Environment *env)
     else if (strcmp(func_name, "randint") == 0)
     {
         return builtin_randint(args, call->argument_count);
+    }
+    else if (strcmp(func_name, "pow") == 0)
+    {
+        return builtin_pow(args, call->argument_count);
+    }
+    else if (strcmp(func_name, "read_file") == 0)
+    {
+        return builtin_read_file(args, call->argument_count);
+    }
+    else if (strcmp(func_name, "write_file") == 0)
+    {
+        return builtin_write_file(args, call->argument_count);
+    }
+    else if (strcmp(func_name, "queue_create") == 0)
+    {
+        return builtin_queue_create(args, call->argument_count);
+    }
+    else if (strcmp(func_name, "queue_add") == 0)
+    {
+        return builtin_queue_add(args, call->argument_count);
+    }
+    else if (strcmp(func_name, "queue_remove") == 0)
+    {
+        return builtin_queue_remove(args, call->argument_count);
+    }
+    else if (strcmp(func_name, "queue_peek") == 0)
+    {
+        return builtin_queue_peek(args, call->argument_count);
+    }
+    else if (strcmp(func_name, "queue_is_empty") == 0)
+    {
+        return builtin_queue_is_empty(args, call->argument_count);
     }
     else
     {
@@ -1409,17 +2046,424 @@ Value eval_method_call(ASTNode *node, Environment *env)
     Value obj = eval_expression(member->object, env);
     char *method_name = member->member;
 
-    if (obj.type == VALUE_LIST && strcmp(method_name, "fill") == 0)
+    if (obj.type == VALUE_LIST)
     {
-        if (call->argument_count == 1 && member->object->type == AST_IDENTIFIER_TYPE)
+        Value *list = NULL;
+        if (member->object->type == AST_IDENTIFIER_TYPE)
         {
-            Value *list = env_get_ref(env, member->object->data.identifier.value);
-            Value value = eval_expression(call->arguments[0], env);
-            if (list)
+            list = env_get_ref(env, member->object->data.identifier.value);
+        }
+
+        if (strcmp(method_name, "fill") == 0)
+        {
+            if (call->argument_count == 1 && list)
             {
+                Value value = eval_expression(call->arguments[0], env);
                 list_fill(list, value);
             }
+            return value_make_null();
         }
+
+        if (strcmp(method_name, "append") == 0)
+        {
+            if (call->argument_count == 1 && list)
+            {
+                Value value = eval_expression(call->arguments[0], env);
+                list_append(list, value);
+            }
+            return value_make_null();
+        }
+
+        if (strcmp(method_name, "remove") == 0)
+        {
+            if (call->argument_count == 1 && list)
+            {
+                Value value = eval_expression(call->arguments[0], env);
+                for (int i = 0; i < list->data.list_val.count; i++)
+                {
+                    if (values_equal(list->data.list_val.elements[i], value))
+                    {
+                        value_free(list->data.list_val.elements[i]);
+                        for (int j = i; j < list->data.list_val.count - 1; j++)
+                        {
+                            list->data.list_val.elements[j] = list->data.list_val.elements[j + 1];
+                        }
+                        list->data.list_val.count--;
+                        break;
+                    }
+                }
+            }
+            return value_make_null();
+        }
+
+        if (strcmp(method_name, "reverse") == 0)
+        {
+            if (call->argument_count == 0 && list)
+            {
+                int count = list->data.list_val.count;
+                for (int i = 0; i < count / 2; i++)
+                {
+                    Value temp = list->data.list_val.elements[i];
+                    list->data.list_val.elements[i] = list->data.list_val.elements[count - i - 1];
+                    list->data.list_val.elements[count - i - 1] = temp;
+                }
+            }
+            return value_make_null();
+        }
+
+        if (strcmp(method_name, "sort") == 0)
+        {
+            if (call->argument_count == 0 && list)
+            {
+                for (int i = 1; i < list->data.list_val.count; i++)
+                {
+                    Value current = list->data.list_val.elements[i];
+                    int j = i - 1;
+                    while (j >= 0 && compare_values(list->data.list_val.elements[j], current) > 0)
+                    {
+                        list->data.list_val.elements[j + 1] = list->data.list_val.elements[j];
+                        j--;
+                    }
+                    list->data.list_val.elements[j + 1] = current;
+                }
+            }
+            return value_make_null();
+        }
+
+        if (strcmp(method_name, "index") == 0)
+        {
+            if (call->argument_count == 1)
+            {
+                Value value = eval_expression(call->arguments[0], env);
+                for (int i = 0; i < obj.data.list_val.count; i++)
+                {
+                    if (values_equal(obj.data.list_val.elements[i], value))
+                    {
+                        return value_make_int(i);
+                    }
+                }
+            }
+            return value_make_int(-1);
+        }
+
+        fprintf(stderr, "Error: list has no method '%s'\n", method_name);
+        return value_make_null();
+    }
+
+    if (obj.type == VALUE_STRING)
+    {
+        char *text = obj.data.string_val;
+
+        if (strcmp(method_name, "upper") == 0)
+        {
+            if (call->argument_count != 0)
+            {
+                return value_make_null();
+            }
+            int len = strlen(text);
+            char *result = malloc(len + 1);
+            for (int i = 0; i < len; i++)
+            {
+                result[i] = toupper((unsigned char)text[i]);
+            }
+            result[len] = '\0';
+            Value value = value_make_string(result);
+            free(result);
+            return value;
+        }
+
+        if (strcmp(method_name, "lower") == 0)
+        {
+            if (call->argument_count != 0)
+            {
+                return value_make_null();
+            }
+            int len = strlen(text);
+            char *result = malloc(len + 1);
+            for (int i = 0; i < len; i++)
+            {
+                result[i] = tolower((unsigned char)text[i]);
+            }
+            result[len] = '\0';
+            Value value = value_make_string(result);
+            free(result);
+            return value;
+        }
+
+        if (strcmp(method_name, "find") == 0 || strcmp(method_name, "index") == 0)
+        {
+            if (call->argument_count != 1)
+            {
+                return value_make_int(-1);
+            }
+            Value needle = eval_expression(call->arguments[0], env);
+            if (needle.type != VALUE_STRING)
+            {
+                return value_make_int(-1);
+            }
+            char *found = strstr(text, needle.data.string_val);
+            return value_make_int(found ? (int)(found - text) : -1);
+        }
+
+        if (strcmp(method_name, "substring") == 0)
+        {
+            if (call->argument_count != 2)
+            {
+                return value_make_null();
+            }
+            Value start_val = eval_expression(call->arguments[0], env);
+            Value end_val = eval_expression(call->arguments[1], env);
+            if (start_val.type != VALUE_INT || end_val.type != VALUE_INT)
+            {
+                return value_make_null();
+            }
+            int len = strlen(text);
+            int start = start_val.data.int_val;
+            int end = end_val.data.int_val;
+            if (start < 0)
+            {
+                start = 0;
+            }
+            if (end > len)
+            {
+                end = len;
+            }
+            if (end < start)
+            {
+                end = start;
+            }
+            char *result = malloc(end - start + 1);
+            memcpy(result, text + start, end - start);
+            result[end - start] = '\0';
+            Value value = value_make_string(result);
+            free(result);
+            return value;
+        }
+
+        if (strcmp(method_name, "replace") == 0)
+        {
+            if (call->argument_count != 2)
+            {
+                return value_make_null();
+            }
+            Value needle = eval_expression(call->arguments[0], env);
+            Value replacement = eval_expression(call->arguments[1], env);
+            if (needle.type != VALUE_STRING || replacement.type != VALUE_STRING)
+            {
+                return value_make_null();
+            }
+            char *result = replace_all_text(text, needle.data.string_val, replacement.data.string_val);
+            Value value = value_make_string(result);
+            free(result);
+            return value;
+        }
+
+        if (strcmp(method_name, "substringCount") == 0)
+        {
+            if (call->argument_count != 1)
+            {
+                return value_make_int(0);
+            }
+            Value needle = eval_expression(call->arguments[0], env);
+            if (needle.type != VALUE_STRING)
+            {
+                return value_make_int(0);
+            }
+            return value_make_int(count_substrings(text, needle.data.string_val));
+        }
+
+        if (strcmp(method_name, "split") == 0)
+        {
+            if (call->argument_count != 1)
+            {
+                return value_make_null();
+            }
+            Value delimiter = eval_expression(call->arguments[0], env);
+            if (delimiter.type != VALUE_STRING)
+            {
+                return value_make_null();
+            }
+            return split_string(text, delimiter.data.string_val);
+        }
+
+        if (strcmp(method_name, "join") == 0)
+        {
+            if (call->argument_count != 1)
+            {
+                return value_make_null();
+            }
+            Value parts = eval_expression(call->arguments[0], env);
+            if (parts.type != VALUE_LIST)
+            {
+                return value_make_null();
+            }
+
+            char *result = malloc(2048);
+            result[0] = '\0';
+            for (int i = 0; i < parts.data.list_val.count; i++)
+            {
+                if (i > 0)
+                {
+                    strcat(result, text);
+                }
+                char *part = value_to_string(parts.data.list_val.elements[i]);
+                strcat(result, part);
+                free(part);
+            }
+            Value value = value_make_string(result);
+            free(result);
+            return value;
+        }
+
+        fprintf(stderr, "Error: string has no method '%s'\n", method_name);
+        return value_make_null();
+    }
+
+    if (obj.type == VALUE_DICT)
+    {
+        Value *dict = NULL;
+        if (member->object->type == AST_IDENTIFIER_TYPE)
+        {
+            dict = env_get_ref(env, member->object->data.identifier.value);
+        }
+
+        if (strcmp(method_name, "get") == 0)
+        {
+            if (call->argument_count != 1)
+            {
+                return value_make_null();
+            }
+            Value key = eval_expression(call->arguments[0], env);
+            char *key_text = value_to_string(key);
+            Value value = dict_get(obj, key_text);
+            free(key_text);
+            return value;
+        }
+
+        if (strcmp(method_name, "keys") == 0)
+        {
+            if (call->argument_count != 0)
+            {
+                return value_make_null();
+            }
+            Value result = list_create();
+            for (int i = 0; i < obj.data.dict_val.count; i++)
+            {
+                list_append(&result, value_make_string(obj.data.dict_val.keys[i]));
+            }
+            return result;
+        }
+
+        if (strcmp(method_name, "values") == 0)
+        {
+            if (call->argument_count != 0)
+            {
+                return value_make_null();
+            }
+            Value result = list_create();
+            for (int i = 0; i < obj.data.dict_val.count; i++)
+            {
+                list_append(&result, copy_value(obj.data.dict_val.values[i]));
+            }
+            return result;
+        }
+
+        if (strcmp(method_name, "items") == 0)
+        {
+            if (call->argument_count != 0)
+            {
+                return value_make_null();
+            }
+            Value result = list_create();
+            for (int i = 0; i < obj.data.dict_val.count; i++)
+            {
+                Value pair = list_create();
+                list_append(&pair, value_make_string(obj.data.dict_val.keys[i]));
+                list_append(&pair, copy_value(obj.data.dict_val.values[i]));
+                list_append(&result, pair);
+            }
+            return result;
+        }
+
+        if (strcmp(method_name, "update") == 0)
+        {
+            if (call->argument_count == 1 && dict)
+            {
+                Value other = eval_expression(call->arguments[0], env);
+                if (other.type == VALUE_DICT)
+                {
+                    for (int i = 0; i < other.data.dict_val.count; i++)
+                    {
+                        dict_set(dict, other.data.dict_val.keys[i], copy_value(other.data.dict_val.values[i]));
+                    }
+                }
+            }
+            return value_make_null();
+        }
+
+        if (strcmp(method_name, "dumps") == 0)
+        {
+            if (call->argument_count != 1)
+            {
+                return value_make_null();
+            }
+            Value payload = eval_expression(call->arguments[0], env);
+            return json_dumps_value(payload);
+        }
+
+        if (strcmp(method_name, "loads") == 0)
+        {
+            if (call->argument_count != 1)
+            {
+                return value_make_null();
+            }
+            Value payload = eval_expression(call->arguments[0], env);
+            return json_loads_value(payload);
+        }
+
+        if (strcmp(method_name, "load") == 0)
+        {
+            if (call->argument_count != 1)
+            {
+                return value_make_null();
+            }
+            Value payload = eval_expression(call->arguments[0], env);
+            return json_load_value(payload);
+        }
+
+        if (strcmp(method_name, "dump") == 0)
+        {
+            if (call->argument_count != 2)
+            {
+                return value_make_null();
+            }
+            Value file_path = eval_expression(call->arguments[0], env);
+            Value payload = eval_expression(call->arguments[1], env);
+            return json_dump_value(file_path, payload);
+        }
+
+        if (strcmp(method_name, "customEncode") == 0)
+        {
+            if (call->argument_count != 1)
+            {
+                return value_make_null();
+            }
+            Value payload = eval_expression(call->arguments[0], env);
+            return json_custom_encode_value(payload);
+        }
+
+        if (strcmp(method_name, "customDecode") == 0)
+        {
+            if (call->argument_count != 2)
+            {
+                return value_make_null();
+            }
+            Value payload = eval_expression(call->arguments[0], env);
+            Value type_name = eval_expression(call->arguments[1], env);
+            return json_custom_decode_value(payload, type_name, env);
+        }
+
+        fprintf(stderr, "Error: dict has no method '%s'\n", method_name);
         return value_make_null();
     }
 
@@ -1578,6 +2622,34 @@ void register_builtins(Environment *env)
     write_file_fn.type = VALUE_BUILTIN;
     write_file_fn.data.builtin_fn = builtin_write_file;
     env_define(env, "write_file", write_file_fn);
+
+    Value queue_create_fn;
+    queue_create_fn.type = VALUE_BUILTIN;
+    queue_create_fn.data.builtin_fn = builtin_queue_create;
+    env_define(env, "queue_create", queue_create_fn);
+
+    Value queue_add_fn;
+    queue_add_fn.type = VALUE_BUILTIN;
+    queue_add_fn.data.builtin_fn = builtin_queue_add;
+    env_define(env, "queue_add", queue_add_fn);
+
+    Value queue_remove_fn;
+    queue_remove_fn.type = VALUE_BUILTIN;
+    queue_remove_fn.data.builtin_fn = builtin_queue_remove;
+    env_define(env, "queue_remove", queue_remove_fn);
+
+    Value queue_peek_fn;
+    queue_peek_fn.type = VALUE_BUILTIN;
+    queue_peek_fn.data.builtin_fn = builtin_queue_peek;
+    env_define(env, "queue_peek", queue_peek_fn);
+
+    Value queue_is_empty_fn;
+    queue_is_empty_fn.type = VALUE_BUILTIN;
+    queue_is_empty_fn.data.builtin_fn = builtin_queue_is_empty;
+    env_define(env, "queue_is_empty", queue_is_empty_fn);
+
+    Value json_module = dict_create();
+    env_define(env, "json", json_module);
 }
 
 Value eval_f_string(ASTNode *node, Environment *env)
