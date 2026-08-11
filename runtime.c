@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <sqlite3.h>
 
 Value value_make_null()
 {
@@ -77,6 +78,22 @@ Value value_make_json_module()
     Value v;
     v.type = VALUE_JSON_MODULE;
     v.data.json_module_val = NULL;
+    return v;
+}
+
+Value value_make_sql_module()
+{
+    Value v;
+    v.type = VALUE_SQL_MODULE;
+    v.data.sql_module_val = NULL;
+    return v;
+}
+
+Value value_make_sql_db(SqlDatabase *db)
+{
+    Value v;
+    v.type = VALUE_SQL_DB;
+    v.data.sql_db_val = db;
     return v;
 }
 
@@ -163,6 +180,12 @@ char *value_to_string(Value v)
     case VALUE_JSON_MODULE:
         strcpy(result, "[json]");
         break;
+    case VALUE_SQL_MODULE:
+        strcpy(result, "[sql]");
+        break;
+    case VALUE_SQL_DB:
+        strcpy(result, "[database]");
+        break;
 
     default:
         strcpy(result, "[object]");
@@ -197,6 +220,9 @@ void value_free(Value v)
         break;
     case VALUE_QUEUE:
         queue_free(v.data.queue_val);
+        break;
+    case VALUE_SQL_DB:
+        sql_db_free(v.data.sql_db_val);
         break;
     default:
         break;
@@ -655,4 +681,39 @@ int queue_is_empty(Queue *queue)
     }
 
     return queue->count == 0;
+}
+
+SqlDatabase *sql_db_create(char *path)
+{
+    SqlDatabase *db = malloc(sizeof(SqlDatabase));
+    if (!db)
+    {
+        return NULL;
+    }
+    db->path = malloc(strlen(path) + 1);
+    strcpy(db->path, path);
+    db->closed = 0;
+    db->handle = NULL;
+    if (sqlite3_open(path, &db->handle) != SQLITE_OK)
+    {
+        sqlite3_close(db->handle);
+        free(db->path);
+        free(db);
+        return NULL;
+    }
+    return db;
+}
+
+void sql_db_free(SqlDatabase *db)
+{
+    if (!db)
+    {
+        return;
+    }
+    if (db->handle)
+    {
+        sqlite3_close(db->handle);
+    }
+    free(db->path);
+    free(db);
 }

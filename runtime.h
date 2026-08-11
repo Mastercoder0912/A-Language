@@ -17,12 +17,16 @@ typedef enum
     VALUE_CLASS_INSTANCE,
     VALUE_QUEUE,
     VALUE_JSON_MODULE,
+    VALUE_SQL_MODULE,
+    VALUE_SQL_DB,
     VALUE_FUNCTION,
     VALUE_BUILTIN
 } ValueType;
 
 typedef struct Value Value;
 typedef struct Queue Queue;
+typedef struct SqlDatabase SqlDatabase;
+typedef struct sqlite3 sqlite3;
 
 typedef struct
 {
@@ -81,6 +85,8 @@ typedef struct Value
         ClassInstanceValue *class_instance_val;
         Queue *queue_val;
         void *json_module_val;
+        void *sql_module_val;
+        SqlDatabase *sql_db_val;
         FunctionValue function_val;
         BuiltinFunction builtin_fn;
     } data;
@@ -105,6 +111,13 @@ typedef struct Queue
     int capacity;
     QueueMode mode;
 } Queue;
+
+typedef struct SqlDatabase
+{
+    char *path;
+    sqlite3 *handle;
+    int closed;
+} SqlDatabase;
 
 typedef struct Symbol
 {
@@ -135,6 +148,8 @@ Value value_make_list();
 Value value_make_dict();
 Value value_make_queue(Queue *queue);
 Value value_make_json_module();
+Value value_make_sql_module();
+Value value_make_sql_db(SqlDatabase *db);
 
 bool value_is_truthy(Value v);
 char *value_to_string(Value v);
@@ -168,5 +183,8 @@ void queue_add(Queue *queue, Value value, int priority);
 Value queue_remove(Queue *queue);
 Value queue_peek(Queue *queue);
 int queue_is_empty(Queue *queue);
+
+SqlDatabase *sql_db_create(char *path);
+void sql_db_free(SqlDatabase *db);
 
 #endif

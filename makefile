@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -std=c11 -O2 -lm
+CFLAGS = -Wall -Wextra -std=c11 -O2 -lm -lsqlite3
 SRCS = main.c interpreter.c lexer.c parser.c ast.c runtime.c builtins.c
 TARGET = arun
 

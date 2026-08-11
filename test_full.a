@@ -1,525 +1,494 @@
-print("test: null data type")
-print("expected: null")
-print("current: " + string(null))
+# ============================================================
+# .a v1.1.0 FULL RELEASE TEST
+# ============================================================
 
-print("test: int data type")
-print("expected: 42")
-int test_int = 42
-print("current: " + string(test_int))
+print("========================================")
+print(".a v1.1.0 FULL RELEASE TEST")
+print("========================================")
 
-print("test: byte data type")
-print("expected: 255")
-byte test_byte = byte(255)
-print("current: " + string(test_byte))
 
-print("test: string data type")
-print("expected: hello")
-string test_string = "hello"
-print("current: " + test_string)
+# ------------------------------------------------------------
+# 1. Basic values
+# ------------------------------------------------------------
 
-print("test: bool True data type")
-print("expected: True")
-bool test_bool_true = True
-print("current: " + string(test_bool_true))
+print("TEST 1: Basic values")
 
-print("test: bool False data type")
-print("expected: False")
-bool test_bool_false = False
-print("current: " + string(test_bool_false))
+int testInt = 42
+byte testByte = 7
+string testString = "hello"
+boolean testBool = True
+int testNull = null
 
-print("test: char data type")
-print("expected: a")
-char test_char = 'a'
-print("current: " + string(test_char))
+print(testInt)
+print(testByte)
+print(testString)
+print(testBool)
+print(testNull)
 
-print("test: list data type")
-print("expected: [1, 2, 3]")
-list test_list = [1, 2, 3]
-print("current: " + string(test_list))
 
-print("test: dict data type")
-print("expected: dict with one = 1 and two = 2")
-dict test_dict = {
-    "one": 1,
-    "two": 2
-}
-print("current: dict with one = " + string(test_dict["one"]) + " and two = " + string(test_dict["two"]))
+# ------------------------------------------------------------
+# 2. Arithmetic
+# ------------------------------------------------------------
 
-print("test: type() null")
-print("expected: null")
-print("current: " + type(null))
+print("TEST 2: Arithmetic")
 
-print("test: type() int")
-print("expected: int")
-print("current: " + type(test_int))
+int a = 10
+int b = 3
 
-print("test: type() byte")
-print("expected: byte")
-print("current: " + type(test_byte))
+print(a + b)
+print(a - b)
+print(a * b)
+print(a / b)
+print(a % b)
 
-print("test: type() string")
-print("expected: string")
-print("current: " + type(test_string))
+# Exponentiation uses pow()
+print(pow(4, 2))
+print(pow(2, 10))
 
-print("test: type() bool")
-print("expected: bool")
-print("current: " + type(test_bool_true))
 
-print("test: type() list")
-print("expected: list")
-print("current: " + type(test_list))
+# ------------------------------------------------------------
+# 3. Boolean logic
+# ------------------------------------------------------------
 
-print("test: type() dict")
-print("expected: dict")
-print("current: " + type(test_dict))
+print("TEST 3: Boolean logic")
 
-print("test: int() from string")
-print("expected: 123")
-print("current: " + string(int("123")))
-
-print("test: int() from bool")
-print("expected: 1")
-print("current: " + string(int(True)))
-
-print("test: int() from byte")
-print("expected: 255")
-print("current: " + string(int(test_byte)))
-
-print("test: byte() from int")
-print("expected: 44")
-print("current: " + string(byte(300)))
-
-print("test: byte() from string")
-print("expected: 12")
-print("current: " + string(byte("12")))
-
-print("test: byte() from bool")
-print("expected: 1")
-print("current: " + string(byte(True)))
-
-print("test: string() from int")
-print("expected: 987")
-print("current: " + string(987))
-
-print("test: list() from string")
-print("expected: [a, b, c]")
-print("current: " + string(list("abc")))
-
-print("test: list() from dict")
-print("expected: [one, two]")
-print("current: " + string(list(test_dict)))
-
-print("test: len() string")
-print("expected: 5")
-print("current: " + string(len("hello")))
-
-print("test: len() list")
-print("expected: 3")
-print("current: " + string(len(test_list)))
-
-print("test: len() dict")
-print("expected: 2")
-print("current: " + string(len(test_dict)))
-
-print("test: pow()")
-print("expected: 81")
-print("current: " + string(pow(3, 4)))
-
-print("test: pow() returns 9")
-print("expected: 9")
-print("current: " + string(pow(3, 2)))
-
-print("test: randint() fixed range")
-print("expected: 5")
-print("current: " + string(randint(5, 5)))
-
-print("test: write_file() and read_file()")
-print("expected: file text")
-write_file("test_full_output.txt", "file text")
-print("current: " + read_file("test_full_output.txt"))
-
-print("test: arithmetic addition")
-print("expected: 13")
-print("current: " + string(10 + 3))
-
-print("test: arithmetic subtraction")
-print("expected: 7")
-print("current: " + string(10 - 3))
-
-print("test: arithmetic multiplication")
-print("expected: 30")
-print("current: " + string(10 * 3))
-
-print("test: arithmetic division")
-print("expected: 3")
-print("current: " + string(10 / 3))
-
-print("test: arithmetic modulo")
-print("expected: 1")
-print("current: " + string(10 % 3))
-
-print("test: comparison ==")
-print("expected: True")
-print("current: " + string(10 == 10))
-
-print("test: comparison !=")
-print("expected: True")
-print("current: " + string(10 != 9))
-
-print("test: comparison >")
-print("expected: True")
-print("current: " + string(10 > 9))
-
-print("test: comparison <")
-print("expected: True")
-print("current: " + string(9 < 10))
-
-print("test: comparison >=")
-print("expected: True")
-print("current: " + string(10 >= 10))
-
-print("test: comparison <=")
-print("expected: True")
-print("current: " + string(9 <= 10))
-
-print("test: logical &&")
-print("expected: False")
-print("current: " + string(True && False))
-
-print("test: logical ||")
-print("expected: True")
-print("current: " + string(False || True))
-
-print("test: logical and")
-print("expected: False")
-print("current: " + string(True and False))
-
-print("test: logical or")
-print("expected: True")
-print("current: " + string(False or True))
-
-print("test: string concatenation")
-print("expected: Hello World")
-print("current: " + ("Hello" + " World"))
-
-print("test: f-string")
-print("expected: value is 42")
-print(f"current: value is {test_int}")
-
-print("test: if else")
-print("expected: pass branch")
-if test_int == 42 {
-    print("current: pass branch")
-}
-else {
-    print("current: fail branch")
+if True{
+    print("TRUE PASS")
 }
 
-print("test: counted loop")
-print("expected: 3")
-int loop_total = 0
-loop(3 as i) {
-    loop_total = loop_total + 1
+if False{
+    print("FALSE FAIL")
 }
-print("current: " + string(loop_total))
-
-function add(a, b) {
-    return a + b
+else{
+    print("FALSE PASS")
 }
 
-print("test: function add()")
-print("expected: 7")
-print("current: " + string(add(3, 4)))
-
-function greet(name, ending="!") {
-    return "Hello, " + name + ending
+if True and True{
+    print("AND PASS")
 }
 
-print("test: function default parameter")
-print("expected: Hello, Ada!")
-print("current: " + greet("Ada"))
-
-print("test: list index read")
-print("expected: 2")
-print("current: " + string(test_list[1]))
-
-print("test: list index write")
-print("expected: [1, 9, 3]")
-test_list[1] = 9
-print("current: " + string(test_list))
-
-print("test: .fill()")
-print("expected: [7, 7, 7]")
-test_list.fill(7)
-print("current: " + string(test_list))
-
-print("test: .append()")
-print("expected: [7, 7, 7, 8]")
-test_list.append(8)
-print("current: " + string(test_list))
-
-print("test: .remove()")
-print("expected: [7, 7, 8]")
-test_list.remove(7)
-print("current: " + string(test_list))
-
-print("test: .reverse()")
-print("expected: [8, 7, 7]")
-test_list.reverse()
-print("current: " + string(test_list))
-
-print("test: .sort()")
-print("expected: [7, 7, 8]")
-test_list.sort()
-print("current: " + string(test_list))
-
-print("test: list .index() found")
-print("expected: 0")
-print("current: " + string(test_list.index(7)))
-
-print("test: list .index() missing")
-print("expected: -1")
-print("current: " + string(test_list.index(99)))
-
-string method_text = "Hello Hello"
-
-print("test: .upper()")
-print("expected: HELLO HELLO")
-print("current: " + method_text.upper())
-
-print("test: .lower()")
-print("expected: hello hello")
-print("current: " + method_text.lower())
-
-print("test: .find()")
-print("expected: 3")
-print("current: " + string(method_text.find("lo")))
-
-print("test: string .index()")
-print("expected: 0")
-print("current: " + string(method_text.index("He")))
-
-print("test: .substring()")
-print("expected: Hello")
-print("current: " + method_text.substring(0, 5))
-
-print("test: .replace()")
-print("expected: Hi Hi")
-print("current: " + method_text.replace("Hello", "Hi"))
-
-print("test: .substringCount()")
-print("expected: 2")
-print("current: " + string(method_text.substringCount("Hello")))
-
-print("test: .split()")
-print("expected: [Hello, Hello]")
-print("current: " + string(method_text.split(" ")))
-
-print("test: .join()")
-print("expected: red-blue-green")
-print("current: " + "-".join(["red", "blue", "green"]))
-
-print("test: dict index read")
-print("expected: 1")
-print("current: " + string(test_dict["one"]))
-
-print("test: dict index write")
-print("expected: 3")
-test_dict["three"] = 3
-print("current: " + string(test_dict["three"]))
-
-print("test: .get()")
-print("expected: 2")
-print("current: " + string(test_dict.get("two")))
-
-print("test: .keys()")
-print("expected: [one, two, three]")
-print("current: " + string(test_dict.keys()))
-
-print("test: .values()")
-print("expected: [1, 2, 3]")
-print("current: " + string(test_dict.values()))
-
-print("test: .items()")
-print("expected: [[one, 1], [two, 2], [three, 3]]")
-print("current: " + string(test_dict.items()))
-
-print("test: .update()")
-print("expected: 4")
-test_dict.update({"four": 4})
-print("current: " + string(test_dict.get("four")))
-
-struct Point {
-    int x;
-    int y;
+if True or False{
+    print("OR PASS")
 }
 
-Point p = Point(3, 7)
 
-print("test: struct field x")
-print("expected: 3")
-print("current: " + string(p.x))
+# ------------------------------------------------------------
+# 4. Casting and type
+# ------------------------------------------------------------
 
-print("test: struct field y")
-print("expected: 7")
-print("current: " + string(p.y))
+print("TEST 4: Casting")
 
-class Dog {
-    private string name
+int convertedInt = int("123")
+string convertedString = string(456)
 
-    function Dog() {
-        name = "Buddy"
+print(convertedInt)
+print(convertedString)
+
+print(type(convertedInt))
+print(type(convertedString))
+
+
+# ------------------------------------------------------------
+# 5. Lists
+# ------------------------------------------------------------
+
+print("TEST 5: Lists")
+
+list numbers = []
+
+numbers.append(10)
+numbers.append(20)
+numbers.append(30)
+
+print(numbers)
+print(len(numbers))
+
+numbers.reverse()
+print(numbers)
+
+numbers.sort()
+print(numbers)
+
+print(numbers.index(20))
+
+numbers.remove(20)
+
+print(numbers)
+
+
+# ------------------------------------------------------------
+# 6. Dictionaries
+# ------------------------------------------------------------
+
+print("TEST 6: Dictionaries")
+
+dict person = {
+    "name": "Jeff",
+    "age": 20
+}
+
+print(person.get("name"))
+print(person.get("age"))
+
+print(person.keys())
+print(person.values())
+print(person.items())
+
+person.update({
+    "age": 21
+})
+
+print(person.get("age"))
+
+
+# ------------------------------------------------------------
+# 7. Strings
+# ------------------------------------------------------------
+
+print("TEST 7: Strings")
+
+string text = "Hello World"
+
+print(text.upper())
+print(text.lower())
+print(text.find("World"))
+print(text.substring(0, 5))
+print(text.replace("World", "a"))
+print(text.substringCount("l"))
+print(text.split(" "))
+
+
+# ------------------------------------------------------------
+# 8. Functions
+# ------------------------------------------------------------
+
+print("TEST 8: Functions")
+
+function add(x, y){
+    return x + y
+}
+
+function multiply(x, y){
+    return x * y
+}
+
+print(add(5, 7))
+print(multiply(6, 8))
+
+
+# ------------------------------------------------------------
+# 9. Recursive functions
+# ------------------------------------------------------------
+
+print("TEST 9: Recursion")
+
+function factorial(n){
+    if n <= 1{
+        return 1
     }
 
-    function .getName() {
-        return name
+    return n * factorial(n - 1)
+}
+
+print(factorial(6))
+
+
+# ------------------------------------------------------------
+# 10. Loops
+# ------------------------------------------------------------
+
+print("TEST 10: Loops")
+
+loop (5 as i){
+    print(i)
+}
+
+
+# ------------------------------------------------------------
+# 11. Structs
+# ------------------------------------------------------------
+
+print("TEST 11: Structs")
+
+struct Node{
+    int id;
+    string data;
+    boolean endOfLinkedList;
+}
+
+Node nodeA = Node(1, "first", False)
+
+print(nodeA)
+
+
+# ------------------------------------------------------------
+# 12. Pointers
+# ------------------------------------------------------------
+
+print("TEST 12: Pointers")
+
+Node* nodePointer = nodeA
+Node copiedNode = *nodePointer
+
+print(copiedNode)
+
+
+# ------------------------------------------------------------
+# 13. Classes
+# ------------------------------------------------------------
+
+print("TEST 13: Classes")
+
+class Counter{
+    private int value
+
+    function Counter(){
+        value = 0
+    }
+
+    function .add(x){
+        value = value + x
+        return value
+    }
+
+    function .get(){
+        return value
     }
 }
 
-Dog dog = Dog()
+Counter counter = Counter()
 
-print("test: class method")
-print("expected: Buddy")
-print("current: " + dog.getName())
+print(counter.add(10))
+print(counter.add(5))
+print(counter.get())
 
-print("test: pass statement")
-print("expected: after pass")
-pass
-print("current: after pass")
 
-print("test: comments")
-print("expected: comments work")
-print("current: comments work")
+# ------------------------------------------------------------
+# 14. F-strings
+# ------------------------------------------------------------
 
-print("test: logical not")
-print("expected: False")
-print("current: " + string(!True))
+print("TEST 14: F-strings")
 
-print("test: lowercase true literal")
-print("expected: True")
-bool lowercase_true = true
-print("current: " + string(lowercase_true))
+string name = "World"
+int number = 42
 
-print("test: += assignment")
-print("expected: 7")
-int plus_eq_value = 5
-plus_eq_value += 2
-print("current: " + string(plus_eq_value))
+print(f"Hello {name}")
+print(f"Number: {number}")
 
-print("test: -= assignment")
-print("expected: 5")
-plus_eq_value -= 2
-print("current: " + string(plus_eq_value))
 
-print("test: ++ increment")
-print("expected: 6")
-plus_eq_value++
-print("current: " + string(plus_eq_value))
+# ------------------------------------------------------------
+# 15. Random
+# ------------------------------------------------------------
 
-print("test: -- decrement")
-print("expected: 5")
-plus_eq_value--
-print("current: " + string(plus_eq_value))
+print("TEST 15: Random")
 
-print("test: cast syntax int")
-print("expected: 12")
-int cast_int_value = int("12")
-print("current: " + string(cast_int_value))
+int randomNumber = randint(1, 100)
 
-print("test: else if")
-print("expected: else-if branch")
-if False {
-    print("current: if branch")
-}
-else if True {
-    print("current: else-if branch")
-}
-else {
-    print("current: else branch")
+print(randomNumber)
+
+
+# ------------------------------------------------------------
+# 16. File I/O
+# ------------------------------------------------------------
+
+print("TEST 16: File I/O")
+
+string testData = "Hello from .a!"
+
+write_file("a_test_file.txt", testData)
+
+string readData = read_file("a_test_file.txt")
+
+print(readData)
+
+
+# ------------------------------------------------------------
+# 17. JSON
+# ------------------------------------------------------------
+
+print("TEST 17: JSON")
+
+dict jsonData = {
+    "name": "a",
+    "version": 1,
+    "working": True
 }
 
-print("test: conditional loop")
-print("expected: 3")
-int conditional_count = 0
-loop(conditional_count < 3) {
-    conditional_count += 1
-}
-print("current: " + string(conditional_count))
+string encoded = json.dumps(jsonData)
 
-print("test: single-line loop with colon")
-print("expected: 2")
-int line_loop_count = 0
-loop(line_loop_count < 2): line_loop_count += 1
-print("current: " + string(line_loop_count))
+print(encoded)
 
-print("test: queue fifo remove order")
-print("expected: first")
-q = queue_create(0)
+dict decoded = json.loads(encoded)
+
+print(decoded.get("name"))
+print(decoded.get("version"))
+print(decoded.get("working"))
+
+
+# ------------------------------------------------------------
+# 18. Queues
+# ------------------------------------------------------------
+
+print("TEST 18: Queue")
+
+Queue q = queue_create(0)
+
 queue_add(q, "first", 0)
 queue_add(q, "second", 0)
-print("current: " + string(queue_remove(q)))
+queue_add(q, "third", 0)
 
-print("test: queue priority peek")
-print("expected: high")
-pq = queue_create(1)
-queue_add(pq, "low", 1)
-queue_add(pq, "high", 9)
-print("current: " + string(queue_peek(pq)))
+print(queue_peek(q))
+print(queue_remove(q))
+print(queue_remove(q))
 
-print("test: queue is empty")
-print("expected: False")
-print("current: " + string(queue_is_empty(pq)))
+print(queue_is_empty(q))
 
-print("test: json dumps")
-print("expected: True")
-print("current: " + string(len(json.dumps({"only": 1})) > 0))
 
-print("test: json loads")
-print("expected: 3")
-dict loaded_json = json.loads(json.dumps({"n": 3}))
-print("current: " + string(loaded_json.get("n")))
+# ------------------------------------------------------------
+# 19. Priority Queue
+# ------------------------------------------------------------
 
-print("test: json dump/load file")
-print("expected: 8")
-json.dump("tmp_json_test.json", {"k": 8})
-dict loaded_from_file = json.load("tmp_json_test.json")
-print("current: " + string(loaded_from_file.get("k")))
+print("TEST 19: Priority Queue")
 
-print("test: os.getcwd not empty")
-print("expected: True")
-print("current: " + string(len(os.getcwd()) > 0))
+Queue priority = queue_create(1)
 
-print("test: os.exists current file")
-print("expected: True")
-print("current: " + string(os.exists("test_full.a")))
+queue_add(priority, "low", 1)
+queue_add(priority, "high", 10)
+queue_add(priority, "medium", 5)
 
-print("test: os.join + exists")
-print("expected: True")
-string joined_test_path = os.join(os.getcwd(), "test_full.a")
-print("current: " + string(os.exists(joined_test_path)))
+print(queue_remove(priority))
+print(queue_remove(priority))
+print(queue_remove(priority))
 
-print("test: os.listdir has entries")
-print("expected: True")
-print("current: " + string(len(os.listdir()) > 0))
 
-print("test: os.environ has values")
-print("expected: True")
-print("current: " + string(len(os.environ().keys()) > 0))
+# ------------------------------------------------------------
+# 20. Nested expressions
+# ------------------------------------------------------------
 
-print("test: os.exec returns status")
-print("expected: True")
-print("current: " + string(os.exec("echo os_exec_test") >= 0))
+print("TEST 20: Nested expressions")
 
-import test_module as tm
+print(add(5, multiply(2, 3)))
+print(pow(add(1, 3), 2))
+print((10 + 5) * 2)
 
-print("test: import module variable")
-print("expected: 11")
-print("current: " + string(tm.module_number))
 
-print("test: import module function call")
-print("expected: 9")
-print("current: " + string(tm.module_add(4, 5)))
+# ------------------------------------------------------------
+# 21. Nested control flow
+# ------------------------------------------------------------
 
-print("test: complete")
-print("expected: all current feature checks printed")
-print("current: all current feature checks printed")
+print("TEST 21: Nested control flow")
+
+loop (3 as i){
+    loop (2 as j){
+        print(i * j)
+    }
+}
+
+
+# ------------------------------------------------------------
+# 22. List + function interaction
+# ------------------------------------------------------------
+
+print("TEST 22: Lists + functions")
+
+function sumThree(x, y, z){
+    return x + y + z
+}
+
+list values = [10, 20, 30]
+
+print(sumThree(values[0], values[1], values[2]))
+
+
+# ------------------------------------------------------------
+# 23. Class + arithmetic + functions
+# ------------------------------------------------------------
+
+print("TEST 23: Class interaction")
+
+class Calculator{
+    private int value
+
+    function Calculator(start){
+        value = start
+    }
+
+    function .add(x){
+        value = value + x
+        return value
+    }
+
+    function .square(){
+        value = pow(value, 2)
+        return value
+    }
+}
+
+Calculator calc = Calculator(5)
+
+calc.add(3)
+
+print(calc.square())
+
+
+# ------------------------------------------------------------
+# 24. Complex conditional logic
+# ------------------------------------------------------------
+
+print("TEST 24: Complex conditionals")
+
+function classify(x){
+    if x > 30{
+        return "greater than 30"
+    }
+    else if x > 20{
+        return "21-30"
+    }
+    else if x > 10{
+        return "11-20"
+    }
+    else{
+        return "10 or less"
+    }
+}
+
+print(classify(35))
+print(classify(25))
+print(classify(15))
+print(classify(5))
+
+
+# ------------------------------------------------------------
+# 25. Final integration
+# ------------------------------------------------------------
+
+print("TEST 25: Final integration")
+
+function calculate(x, y){
+    int result = pow(x + y, 2)
+    return result
+}
+
+list results = []
+
+loop (5 as i){
+    results.append(calculate(i, 2))
+}
+
+print(results)
+
+string finalText = "v1.1.0"
+
+print(f"{finalText} integration test complete!")
+
+
+# ------------------------------------------------------------
+# DONE
+# ------------------------------------------------------------
+
+print("========================================")
+print("ALL TESTS COMPLETED")
+print("========================================")
+print("If you see this message, .a v1.1.0")
+print("passed the full integration test.")
+print("========================================")

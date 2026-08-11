@@ -68,7 +68,7 @@ static void finalize_test_case(void)
         }
         else
         {
-            printf("FAIL: %s\n", test_harness.name ? test_harness.name : "unknown");
+            printf("%s failed\n", test_harness.name ? test_harness.name : "unknown");
             if (test_harness.expected)
             {
                 printf("expected: %s\n", test_harness.expected);
@@ -83,11 +83,20 @@ static void finalize_test_case(void)
     reset_test_harness();
 }
 
+static const char *test_value_text(const char *text)
+{
+    while (*text == ' ')
+    {
+        text++;
+    }
+    return text;
+}
+
 static void begin_test_case(const char *name)
 {
     finalize_test_case();
     test_harness.active = 1;
-    test_harness.name = duplicate_string(name);
+    test_harness.name = duplicate_string(test_value_text(name));
 }
 
 static void record_expected(const char *value)
@@ -120,7 +129,7 @@ static void record_current(const char *value)
     }
     else
     {
-        printf("FAIL: %s\n", test_harness.name ? test_harness.name : "unknown");
+        printf("%s failed\n", test_harness.name ? test_harness.name : "unknown");
         printf("expected: %s\n", test_harness.expected ? test_harness.expected : "");
         printf("current: %s\n", test_harness.current ? test_harness.current : "");
     }
@@ -153,6 +162,7 @@ extern char **environ;
 
 Value builtin_print(Value *args, int arg_count)
 {
+    int printed_normal = 0;
     for (int i = 0; i < arg_count; i++)
     {
         char *str = value_to_string(args[i]);
@@ -168,23 +178,24 @@ Value builtin_print(Value *args, int arg_count)
         {
             if (strncmp(str, "expected:", 9) == 0)
             {
-                record_expected(str + 9);
+                record_expected(test_value_text(str + 9));
                 free(str);
                 continue;
             }
             if (strncmp(str, "current:", 8) == 0)
             {
-                record_current(str + 8);
+                record_current(test_value_text(str + 8));
                 free(str);
                 continue;
             }
         }
 
         printf("%s", str);
+        printed_normal = 1;
         free(str);
     }
 
-    if (!test_harness.active)
+    if (printed_normal)
     {
         printf("\n");
     }
@@ -352,6 +363,14 @@ Value builtin_type(Value *args, int arg_count)
         return value_make_string("struct");
     case VALUE_CLASS_INSTANCE:
         return value_make_string("class");
+    case VALUE_QUEUE:
+        return value_make_string("queue");
+    case VALUE_JSON_MODULE:
+        return value_make_string("json");
+    case VALUE_SQL_MODULE:
+        return value_make_string("sql");
+    case VALUE_SQL_DB:
+        return value_make_string("database");
     case VALUE_FUNCTION:
         return value_make_string("function");
     case VALUE_BUILTIN:

@@ -8,6 +8,7 @@
 #include <stddef.h>
 #include <math.h>
 #include <ctype.h>
+#include <sqlite3.h>
 
 static char *duplicate_string(const char *text)
 {
@@ -456,6 +457,472 @@ static Value json_custom_decode_value(Value dict_value, Value type_name_value, E
     return value_make_null();
 }
 
+static int sql_get_named_arg(AST_FUNCTION_CALL_DEFINITION *call, char *name, Environment *env, Value *out)
+{
+    for (int i = 0; i < call->argument_count; i++)
+    {
+        ASTNode *arg = call->arguments[i];
+        if (arg->type == AST_ASSIGNMENT_TYPE)
+        {
+            AST_ASSIGNMENT *assignment = &arg->data.assignment;
+            if (assignment->target->type == AST_IDENTIFIER_TYPE &&
+                strcmp(assignment->target->data.identifier.value, name) == 0)
+            {
+                *out = eval_expression(assignment->value, env);
+                return 1;
+            }
+        }
+    }
+    return 0;
+}
+
+static int sql_positional_count(AST_FUNCTION_CALL_DEFINITION *call)
+{
+    int count = 0;
+    for (int i = 0; i < call->argument_count; i++)
+    {
+        if (call->arguments[i]->type != AST_ASSIGNMENT_TYPE)
+        {
+            count++;
+        }
+    }
+    return count;
+}
+
+static Value sql_get_positional(AST_FUNCTION_CALL_DEFINITION *call, int wanted, Environment *env)
+{
+    int index = 0;
+    for (int i = 0; i < call->argument_count; i++)
+    {
+        if (call->arguments[i]->type != AST_ASSIGNMENT_TYPE)
+        {
+            if (index == wanted)
+            {
+                return eval_expression(call->arguments[i], env);
+            }
+            index++;
+        }
+    }
+    return value_make_null();
+}
+
+static int sql_has_named_arg(AST_FUNCTION_CALL_DEFINITION *call)
+{
+    for (int i = 0; i < call->argument_count; i++)
+    {
+        if (call->arguments[i]->type == AST_ASSIGNMENT_TYPE)
+        {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static void sql_bind_value(sqlite3_stmt *stmt, int index, Value value)
+{
+    switch (value.type)
+    {
+    case VALUE_NULL:
+        sqlite3_bind_null(stmt, index);
+        break;
+    case VALUE_INT:
+        sqlite3_bind_int(stmt, index, value.data.int_val);
+        break;
+    case VALUE_BYTE:
+        sqlite3_bind_int(stmt, index, value.data.byte_val);
+        break;
+    case VALUE_BOOL:
+        sqlite3_bind_int(stmt, index, value.data.bool_val);
+        break;
+    case VALUE_STRING:
+        sqlite3_bind_text(stmt, index, value.data.string_val, -1, SQLITE_TRANSIENT);
+        break;
+    default:
+    {
+        char *text = value_to_string(value);
+        sqlite3_bind_text(stmt, index, text, -1, SQLITE_TRANSIENT);
+        free(text);
+        break;
+    }
+    }
+}
+
+static Value sql_column_value(sqlite3_stmt *stmt, int column)
+{
+    int type = sqlite3_column_type(stmt, column);
+    if (type == SQLITE_INTEGER)
+    {
+        return value_make_int(sqlite3_column_int(stmt, column));
+    }
+    if (type == SQLITE_TEXT)
+    {
+        const unsigned char *text = sqlite3_column_text(stmt, column);
+        return value_make_string((char *)(text ? text : (const unsigned char *)""));
+    }
+    if (type == SQLITE_NULL)
+    {
+        return value_make_null();
+    }
+    const unsigned char *text = sqlite3_column_text(stmt, column);
+    return value_make_string((char *)(text ? text : (const unsigned char *)""));
+}
+
+static Value sql_fetch_query(SqlDatabase *db, char *query)
+{
+    sqlite3_stmt *stmt = NULL;
+    Value result = list_create();
+    if (sqlite3_prepare_v2(db->handle, query, -1, &stmt, NULL) != SQLITE_OK)
+    {
+        fprintf(stderr, "Error: SQL fetch failed: %s\n", sqlite3_errmsg(db->handle));
+        return result;
+    }
+    int column_count = sqlite3_column_count(stmt);
+    while (sqlite3_step(stmt) == SQLITE_ROW)
+    {
+        Value row = dict_create();
+        for (int i = 0; i < column_count; i++)
+        {
+            const char *name = sqlite3_column_name(stmt, i);
+            dict_set(&row, (char *)name, sql_column_value(stmt, i));
+        }
+        list_append(&result, row);
+    }
+    sqlite3_finalize(stmt);
+    return result;
+}
+
+static char *sql_table_name_from_call(AST_FUNCTION_CALL_DEFINITION *call, Environment *env)
+{
+    Value table_arg;
+    if (sql_get_named_arg(call, "table", env, &table_arg) && table_arg.type == VALUE_STRING)
+    {
+        return table_arg.data.string_val;
+    }
+    if (sql_positional_count(call) > 0)
+    {
+        Value first = sql_get_positional(call, 0, env);
+        if (first.type == VALUE_STRING)
+        {
+            return first.data.string_val;
+        }
+    }
+    return "default";
+}
+
+static char **sql_table_columns(SqlDatabase *db, char *table_name, int *count)
+{
+    *count = 0;
+    char query[256];
+    snprintf(query, sizeof(query), "PRAGMA table_info(%s)", table_name);
+    sqlite3_stmt *stmt = NULL;
+    if (sqlite3_prepare_v2(db->handle, query, -1, &stmt, NULL) != SQLITE_OK)
+    {
+        return NULL;
+    }
+    int capacity = 8;
+    char **columns = malloc(sizeof(char *) * capacity);
+    while (sqlite3_step(stmt) == SQLITE_ROW)
+    {
+        const unsigned char *name = sqlite3_column_text(stmt, 1);
+        if (!name)
+        {
+            continue;
+        }
+        if (*count >= capacity)
+        {
+            capacity *= 2;
+            columns = realloc(columns, sizeof(char *) * capacity);
+        }
+        columns[*count] = duplicate_string((const char *)name);
+        (*count)++;
+    }
+    sqlite3_finalize(stmt);
+    return columns;
+}
+
+static void sql_free_columns(char **columns, int count)
+{
+    for (int i = 0; i < count; i++)
+    {
+        free(columns[i]);
+    }
+    free(columns);
+}
+
+static Value sql_entry(SqlDatabase *db, AST_FUNCTION_CALL_DEFINITION *call, Environment *env)
+{
+    int positions = sql_positional_count(call);
+    Value first = sql_get_positional(call, 0, env);
+    Value second = sql_get_positional(call, 1, env);
+    int dict_mode = positions >= 2 && first.type == VALUE_STRING && second.type == VALUE_DICT && !sql_get_named_arg(call, "table", env, &first);
+    char *table_name = dict_mode ? first.data.string_val : sql_table_name_from_call(call, env);
+    Value row = dict_mode ? second : value_make_null();
+    int value_start = dict_mode ? 2 : 0;
+    int column_count = 0;
+    char **columns = NULL;
+
+    if (!dict_mode)
+    {
+        columns = sql_table_columns(db, table_name, &column_count);
+    }
+
+    int insert_count = dict_mode ? row.data.dict_val.count : positions - value_start;
+    if (insert_count <= 0)
+    {
+        sql_free_columns(columns, column_count);
+        return value_make_null();
+    }
+
+    char query[2048];
+    snprintf(query, sizeof(query), "INSERT INTO %s (", table_name);
+    for (int i = 0; i < insert_count; i++)
+    {
+        if (i > 0)
+        {
+            strcat(query, ", ");
+        }
+        if (dict_mode)
+        {
+            strcat(query, row.data.dict_val.keys[i]);
+        }
+        else if (column_count > 0)
+        {
+            int column_index = i;
+            if (column_count > insert_count && strcmp(columns[0], "id") == 0)
+            {
+                column_index = i + 1;
+            }
+            strcat(query, columns[column_index]);
+        }
+        else if (i == 0)
+        {
+            strcat(query, "name");
+        }
+        else if (i == 1)
+        {
+            strcat(query, "age");
+        }
+        else
+        {
+            char key[32];
+            sprintf(key, "column%d", i + 1);
+            strcat(query, key);
+        }
+    }
+    strcat(query, ") VALUES (");
+    for (int i = 0; i < insert_count; i++)
+    {
+        if (i > 0)
+        {
+            strcat(query, ", ");
+        }
+        strcat(query, "?");
+    }
+    strcat(query, ")");
+
+    sqlite3_stmt *stmt = NULL;
+    if (sqlite3_prepare_v2(db->handle, query, -1, &stmt, NULL) != SQLITE_OK)
+    {
+        fprintf(stderr, "Error: SQL entry failed: %s\n", sqlite3_errmsg(db->handle));
+        sql_free_columns(columns, column_count);
+        return value_make_null();
+    }
+    for (int i = 0; i < insert_count; i++)
+    {
+        Value value = dict_mode ? row.data.dict_val.values[i] : sql_get_positional(call, value_start + i, env);
+        sql_bind_value(stmt, i + 1, value);
+    }
+    if (sqlite3_step(stmt) != SQLITE_DONE)
+    {
+        fprintf(stderr, "Error: SQL entry failed: %s\n", sqlite3_errmsg(db->handle));
+    }
+    sqlite3_finalize(stmt);
+    sql_free_columns(columns, column_count);
+    return value_make_null();
+}
+
+static Value sql_fetch(SqlDatabase *db, AST_FUNCTION_CALL_DEFINITION *call, Environment *env)
+{
+    if (call->argument_count == 1 && !sql_has_named_arg(call))
+    {
+        Value query = sql_get_positional(call, 0, env);
+        if (query.type == VALUE_STRING)
+        {
+            return sql_fetch_query(db, query.data.string_val);
+        }
+    }
+
+    char *table_name = sql_table_name_from_call(call, env);
+    char query[2048];
+    strcpy(query, "SELECT ");
+    Value parameters;
+    if (sql_get_named_arg(call, "parameters", env, &parameters) && parameters.type == VALUE_LIST)
+    {
+        for (int i = 0; i < parameters.data.list_val.count; i++)
+        {
+            if (i > 0)
+            {
+                strcat(query, ", ");
+            }
+            Value column = parameters.data.list_val.elements[i];
+            if (column.type == VALUE_STRING)
+            {
+                strcat(query, column.data.string_val);
+            }
+        }
+    }
+    else
+    {
+        strcat(query, "*");
+    }
+    strcat(query, " FROM ");
+    strcat(query, table_name);
+    Value where;
+    if (sql_get_named_arg(call, "where", env, &where) && where.type == VALUE_STRING)
+    {
+        strcat(query, " WHERE ");
+        strcat(query, where.data.string_val);
+    }
+    return sql_fetch_query(db, query);
+}
+
+static Value sql_module_method(char *method_name, AST_FUNCTION_CALL_DEFINITION *call, Environment *env)
+{
+    if (strcmp(method_name, "database") != 0 && strcmp(method_name, "create") != 0)
+    {
+        fprintf(stderr, "Error: sql has no method '%s'\n", method_name);
+        return value_make_null();
+    }
+    if (call->argument_count != 1)
+    {
+        return value_make_null();
+    }
+    Value path = eval_expression(call->arguments[0], env);
+    if (path.type != VALUE_STRING)
+    {
+        return value_make_null();
+    }
+    SqlDatabase *db = sql_db_create(path.data.string_val);
+    if (!db)
+    {
+        fprintf(stderr, "Error: could not open database '%s'\n", path.data.string_val);
+        return value_make_null();
+    }
+    return value_make_sql_db(db);
+}
+
+static Value sql_db_method(SqlDatabase *db, char *method_name, AST_FUNCTION_CALL_DEFINITION *call, Environment *env)
+{
+    if (!db || db->closed || !db->handle)
+    {
+        fprintf(stderr, "Error: database is closed\n");
+        return value_make_null();
+    }
+
+    if (strcmp(method_name, "execute") == 0)
+    {
+        if (call->argument_count != 1)
+        {
+            return value_make_null();
+        }
+        Value statement = eval_expression(call->arguments[0], env);
+        if (statement.type == VALUE_STRING)
+        {
+            char *error = NULL;
+            if (sqlite3_exec(db->handle, statement.data.string_val, NULL, NULL, &error) != SQLITE_OK)
+            {
+                fprintf(stderr, "Error: SQL execute failed: %s\n", error ? error : sqlite3_errmsg(db->handle));
+                sqlite3_free(error);
+            }
+        }
+        return value_make_null();
+    }
+
+    if (strcmp(method_name, "entry") == 0)
+    {
+        return sql_entry(db, call, env);
+    }
+
+    if (strcmp(method_name, "fetch") == 0)
+    {
+        return sql_fetch(db, call, env);
+    }
+
+    if (strcmp(method_name, "update") == 0)
+    {
+        char *table_name = sql_table_name_from_call(call, env);
+        Value set_values;
+        if (!sql_get_named_arg(call, "set", env, &set_values) || set_values.type != VALUE_DICT)
+        {
+            return value_make_null();
+        }
+        char query[2048];
+        snprintf(query, sizeof(query), "UPDATE %s SET ", table_name);
+        for (int i = 0; i < set_values.data.dict_val.count; i++)
+        {
+            if (i > 0)
+            {
+                strcat(query, ", ");
+            }
+            strcat(query, set_values.data.dict_val.keys[i]);
+            strcat(query, " = ?");
+        }
+        Value where;
+        if (sql_get_named_arg(call, "where", env, &where) && where.type == VALUE_STRING)
+        {
+            strcat(query, " WHERE ");
+            strcat(query, where.data.string_val);
+        }
+        sqlite3_stmt *stmt = NULL;
+        if (sqlite3_prepare_v2(db->handle, query, -1, &stmt, NULL) != SQLITE_OK)
+        {
+            fprintf(stderr, "Error: SQL update failed: %s\n", sqlite3_errmsg(db->handle));
+            return value_make_null();
+        }
+        for (int i = 0; i < set_values.data.dict_val.count; i++)
+        {
+            sql_bind_value(stmt, i + 1, set_values.data.dict_val.values[i]);
+        }
+        if (sqlite3_step(stmt) != SQLITE_DONE)
+        {
+            fprintf(stderr, "Error: SQL update failed: %s\n", sqlite3_errmsg(db->handle));
+        }
+        sqlite3_finalize(stmt);
+        return value_make_null();
+    }
+
+    if (strcmp(method_name, "delete") == 0)
+    {
+        char *table_name = sql_table_name_from_call(call, env);
+        char query[1024];
+        snprintf(query, sizeof(query), "DELETE FROM %s", table_name);
+        Value where;
+        if (sql_get_named_arg(call, "where", env, &where) && where.type == VALUE_STRING)
+        {
+            strcat(query, " WHERE ");
+            strcat(query, where.data.string_val);
+        }
+        char *error = NULL;
+        if (sqlite3_exec(db->handle, query, NULL, NULL, &error) != SQLITE_OK)
+        {
+            fprintf(stderr, "Error: SQL delete failed: %s\n", error ? error : sqlite3_errmsg(db->handle));
+            sqlite3_free(error);
+        }
+        return value_make_null();
+    }
+
+    if (strcmp(method_name, "close") == 0)
+    {
+        sqlite3_close(db->handle);
+        db->handle = NULL;
+        db->closed = 1;
+        return value_make_null();
+    }
+
+    fprintf(stderr, "Error: database has no method '%s'\n", method_name);
+    return value_make_null();
+}
+
 static int class_field_index(ClassInstanceValue *instance, char *name)
 {
     for (int i = 0; i < instance->field_count; i++)
@@ -646,6 +1113,12 @@ static Value copy_value(Value original)
         result.data.builtin_fn = original.data.builtin_fn;
         return result;
     }
+    case VALUE_JSON_MODULE:
+        return value_make_json_module();
+    case VALUE_SQL_MODULE:
+        return value_make_sql_module();
+    case VALUE_SQL_DB:
+        return value_make_sql_db(original.data.sql_db_val);
     default:
         return value_make_null();
     }
@@ -2144,6 +2617,84 @@ Value eval_method_call(ASTNode *node, Environment *env)
     Value obj = eval_expression(member->object, env);
     char *method_name = member->member;
 
+    if (obj.type == VALUE_JSON_MODULE)
+    {
+        if (strcmp(method_name, "dumps") == 0)
+        {
+            if (call->argument_count != 1)
+            {
+                return value_make_null();
+            }
+            Value payload = eval_expression(call->arguments[0], env);
+            return json_dumps_value(payload);
+        }
+
+        if (strcmp(method_name, "loads") == 0)
+        {
+            if (call->argument_count != 1)
+            {
+                return value_make_null();
+            }
+            Value payload = eval_expression(call->arguments[0], env);
+            return json_loads_value(payload);
+        }
+
+        if (strcmp(method_name, "load") == 0)
+        {
+            if (call->argument_count != 1)
+            {
+                return value_make_null();
+            }
+            Value payload = eval_expression(call->arguments[0], env);
+            return json_load_value(payload);
+        }
+
+        if (strcmp(method_name, "dump") == 0)
+        {
+            if (call->argument_count != 2)
+            {
+                return value_make_null();
+            }
+            Value file_path = eval_expression(call->arguments[0], env);
+            Value payload = eval_expression(call->arguments[1], env);
+            return json_dump_value(file_path, payload);
+        }
+
+        if (strcmp(method_name, "customEncode") == 0)
+        {
+            if (call->argument_count != 1)
+            {
+                return value_make_null();
+            }
+            Value payload = eval_expression(call->arguments[0], env);
+            return json_custom_encode_value(payload);
+        }
+
+        if (strcmp(method_name, "customDecode") == 0)
+        {
+            if (call->argument_count != 2)
+            {
+                return value_make_null();
+            }
+            Value payload = eval_expression(call->arguments[0], env);
+            Value type_name = eval_expression(call->arguments[1], env);
+            return json_custom_decode_value(payload, type_name, env);
+        }
+
+        fprintf(stderr, "Error: json has no method '%s'\n", method_name);
+        return value_make_null();
+    }
+
+    if (obj.type == VALUE_SQL_MODULE)
+    {
+        return sql_module_method(method_name, call, env);
+    }
+
+    if (obj.type == VALUE_SQL_DB)
+    {
+        return sql_db_method(obj.data.sql_db_val, method_name, call, env);
+    }
+
     if (obj.type == VALUE_LIST)
     {
         Value *list = NULL;
@@ -2809,8 +3360,11 @@ void register_builtins(Environment *env)
     queue_is_empty_fn.data.builtin_fn = builtin_queue_is_empty;
     env_define(env, "queue_is_empty", queue_is_empty_fn);
 
-    Value json_module = dict_create();
+    Value json_module = value_make_json_module();
     env_define(env, "json", json_module);
+
+    Value sql_module = value_make_sql_module();
+    env_define(env, "sql", sql_module);
 
     Value os_module = dict_create();
 
