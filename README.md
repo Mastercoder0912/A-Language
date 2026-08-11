@@ -230,6 +230,10 @@ Abstract Syntax Tree (AST)
 - Object-Oriented Programming
 - Module Imports
 - File I/O
+- SQLite Database Access
+- JSON File Reading
+- OS class
+- Queue Data Type
 - Standard Library
 
 ## Planned
