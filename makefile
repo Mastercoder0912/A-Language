@@ -15,7 +15,7 @@ ifeq ($(OS),Windows_NT)
     TARGET = arun.exe
 endif
 
-.PHONY: build install uninstall update clean
+.PHONY: build install uninstall update clean test
 
 build:
 	$(CC) -o $(TARGET) $(SRCS) $(CFLAGS)
@@ -35,3 +35,12 @@ update: uninstall install
 clean:
 	rm -f $(TARGET)
 	@echo "Cleaned build artifacts"
+
+test: build
+	./$(TARGET) /home/runner/work/A-Language/A-Language/tests/python_integration.a | tee /tmp/a_python_test.out
+	grep -q "Score: 9/9 correct" /tmp/a_python_test.out
+	A_LANG_PYTHON=python_does_not_exist ./$(TARGET) /home/runner/work/A-Language/A-Language/tests/python_missing_interpreter.a | tee /tmp/a_python_missing_test.out
+	grep -q "Score: 3/3 correct" /tmp/a_python_missing_test.out
+	./$(TARGET) /home/runner/work/A-Language/A-Language/tests/os_commands.a | tee /tmp/a_os_test.out
+	grep -q "Score: 9/9 correct" /tmp/a_os_test.out
+	./$(TARGET) /home/runner/work/A-Language/A-Language/test_full.a > /tmp/a_regression_test_full.out

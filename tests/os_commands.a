@@ -1,0 +1,50 @@
+string baseDir = "/tmp/a_lang_os_tests_" + string(randint(1000, 999999))
+os.mkdir(baseDir)
+
+os.cd(baseDir)
+
+print("test:os pwd has tmp path")
+print("expected:True")
+print("current:" + string(os.pwd().find("/tmp/a_lang_os_tests") >= 0))
+
+os.touch("first.txt")
+print("test:os touch creates file")
+print("expected:True")
+print("current:" + string(os.exists("first.txt")))
+
+write_file("first.txt", "alpha")
+os.cp("first.txt", "copy.txt")
+print("test:os cp copies content")
+print("expected:alpha")
+print("current:" + read_file("copy.txt"))
+
+os.mv("copy.txt", "moved.txt")
+print("test:os mv removes old")
+print("expected:False")
+print("current:" + string(os.exists("copy.txt")))
+
+print("test:os mv creates new")
+print("expected:True")
+print("current:" + string(os.exists("moved.txt")))
+
+list names = os.ls()
+print("test:os ls has first")
+print("expected:True")
+print("current:" + string(names.index("first.txt") >= 0))
+
+os.echo("line", 1, "done")
+print("test:os mkdir and rm directory")
+print("expected:True")
+print("current:" + string(os.mkdir("inner") and os.rm("inner")))
+
+print("test:os rm file")
+print("expected:True")
+print("current:" + string(os.rm("moved.txt")))
+
+os.rm("first.txt")
+os.cd("/tmp")
+os.rm(baseDir)
+
+print("test:complete")
+print("expected:done")
+print("current:done")

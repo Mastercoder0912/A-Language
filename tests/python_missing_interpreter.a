@@ -1,0 +1,13 @@
+dict runMissingPython = python.run("tests/python_success.py")
+
+print("test:python missing interpreter ok")
+print("expected:False")
+print("current:" + string(runMissingPython.get("ok")))
+
+print("test:python missing interpreter status")
+print("expected:-1")
+print("current:" + string(runMissingPython.get("status")))
+
+print("test:complete")
+print("expected:done")
+print("current:done")

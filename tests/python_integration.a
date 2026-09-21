@@ -1,0 +1,40 @@
+dict runSuccess = python.run("tests/python_success.py", ["hello", 42])
+
+print("test:python success ok")
+print("expected:True")
+print("current:" + string(runSuccess.get("ok")))
+
+print("test:python success status")
+print("expected:0")
+print("current:" + string(runSuccess.get("status")))
+
+print("test:python success output")
+print("expected:True")
+print("current:" + string(runSuccess.get("output").find("args:hello|42") >= 0))
+
+dict runMissingScript = python.run("tests/does_not_exist.py")
+print("test:python missing script ok")
+print("expected:False")
+print("current:" + string(runMissingScript.get("ok")))
+
+print("test:python missing script status")
+print("expected:-1")
+print("current:" + string(runMissingScript.get("status")))
+
+dict runFailure = python.run("tests/python_fail.py")
+
+print("test:python failure ok")
+print("expected:False")
+print("current:" + string(runFailure.get("ok")))
+
+print("test:python failure status")
+print("expected:3")
+print("current:" + string(runFailure.get("status")))
+
+print("test:python failure output")
+print("expected:True")
+print("current:" + string(runFailure.get("output").find("python failed on purpose") >= 0))
+
+print("test:complete")
+print("expected:done")
+print("current:done")

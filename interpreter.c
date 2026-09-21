@@ -3403,7 +3403,59 @@ void register_builtins(Environment *env)
     os_environ_fn.data.builtin_fn = os_environ;
     dict_set(&os_module, "environ", os_environ_fn);
 
+    Value os_pwd_fn;
+    os_pwd_fn.type = VALUE_BUILTIN;
+    os_pwd_fn.data.builtin_fn = os_pwd;
+    dict_set(&os_module, "pwd", os_pwd_fn);
+
+    Value os_ls_fn;
+    os_ls_fn.type = VALUE_BUILTIN;
+    os_ls_fn.data.builtin_fn = os_ls;
+    dict_set(&os_module, "ls", os_ls_fn);
+
+    Value os_cd_fn;
+    os_cd_fn.type = VALUE_BUILTIN;
+    os_cd_fn.data.builtin_fn = os_cd;
+    dict_set(&os_module, "cd", os_cd_fn);
+
+    Value os_mkdir_fn;
+    os_mkdir_fn.type = VALUE_BUILTIN;
+    os_mkdir_fn.data.builtin_fn = os_mkdir;
+    dict_set(&os_module, "mkdir", os_mkdir_fn);
+
+    Value os_touch_fn;
+    os_touch_fn.type = VALUE_BUILTIN;
+    os_touch_fn.data.builtin_fn = os_touch;
+    dict_set(&os_module, "touch", os_touch_fn);
+
+    Value os_cp_fn;
+    os_cp_fn.type = VALUE_BUILTIN;
+    os_cp_fn.data.builtin_fn = os_cp;
+    dict_set(&os_module, "cp", os_cp_fn);
+
+    Value os_mv_fn;
+    os_mv_fn.type = VALUE_BUILTIN;
+    os_mv_fn.data.builtin_fn = os_mv;
+    dict_set(&os_module, "mv", os_mv_fn);
+
+    Value os_rm_fn;
+    os_rm_fn.type = VALUE_BUILTIN;
+    os_rm_fn.data.builtin_fn = os_rm;
+    dict_set(&os_module, "rm", os_rm_fn);
+
+    Value os_echo_fn;
+    os_echo_fn.type = VALUE_BUILTIN;
+    os_echo_fn.data.builtin_fn = os_echo;
+    dict_set(&os_module, "echo", os_echo_fn);
+
     env_define(env, "os", os_module);
+
+    Value python_module = dict_create();
+    Value python_run_fn;
+    python_run_fn.type = VALUE_BUILTIN;
+    python_run_fn.data.builtin_fn = python_run;
+    dict_set(&python_module, "run", python_run_fn);
+    env_define(env, "python", python_module);
 }
 
 Value eval_f_string(ASTNode *node, Environment *env)
