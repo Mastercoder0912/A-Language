@@ -6,6 +6,7 @@
 #include <errno.h>
 #include <limits.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 
 typedef struct
 {
@@ -20,6 +21,11 @@ typedef struct
 static TestHarnessState test_harness = {0, NULL, NULL, NULL, 0, 0};
 static int test_total = 0;
 static int test_correct = 0;
+
+#if !defined(_WIN32) && !defined(_WIN64)
+extern FILE *popen(const char *command, const char *type);
+extern int pclose(FILE *stream);
+#endif
 
 static char *duplicate_string(const char *text)
 {
@@ -142,6 +148,143 @@ static void record_current(const char *value)
     reset_test_harness();
 }
 
+static void append_text(char **buffer, size_t *length, size_t *capacity, const char *text)
+{
+    if (!buffer || !length || !capacity || !text)
+    {
+        return;
+    }
+
+    size_t text_len = strlen(text);
+    size_t needed = *length + text_len + 1;
+    if (needed > *capacity)
+    {
+        size_t next_capacity = *capacity;
+        while (needed > next_capacity)
+        {
+            next_capacity *= 2;
+        }
+        char *next = realloc(*buffer, next_capacity);
+        if (!next)
+        {
+            return;
+        }
+        *buffer = next;
+        *capacity = next_capacity;
+    }
+
+    memcpy(*buffer + *length, text, text_len);
+    *length += text_len;
+    (*buffer)[*length] = '\0';
+}
+
+static char *shell_quote(const char *text)
+{
+    if (!text)
+    {
+        return duplicate_string("''");
+    }
+
+    size_t len = strlen(text);
+    size_t max_len = len * 4 + 3;
+    char *quoted = malloc(max_len);
+    if (!quoted)
+    {
+        return NULL;
+    }
+
+    size_t w = 0;
+    quoted[w++] = '\'';
+    for (size_t i = 0; i < len; i++)
+    {
+        if (text[i] == '\'')
+        {
+            quoted[w++] = '\'';
+            quoted[w++] = '\\';
+            quoted[w++] = '\'';
+            quoted[w++] = '\'';
+        }
+        else
+        {
+            quoted[w++] = text[i];
+        }
+    }
+    quoted[w++] = '\'';
+    quoted[w] = '\0';
+    return quoted;
+}
+
+static Value make_command_result(int status, const char *output, const char *error)
+{
+    Value result = dict_create();
+    dict_set(&result, "ok", value_make_bool(status == 0));
+    dict_set(&result, "status", value_make_int(status));
+    dict_set(&result, "output", value_make_string((char *)(output ? output : "")));
+    if (error)
+    {
+        dict_set(&result, "error", value_make_string((char *)error));
+    }
+    else
+    {
+        dict_set(&result, "error", value_make_null());
+    }
+    return result;
+}
+
+static int process_exit_code(int raw_status)
+{
+#if defined(_WIN32) || defined(_WIN64)
+    return raw_status;
+#else
+    if (raw_status < 0)
+    {
+        return -1;
+    }
+    return (raw_status >> 8) & 0xFF;
+#endif
+}
+
+static const char *python_candidates[] = {"python3", "python", NULL};
+
+static int command_works(const char *command)
+{
+    if (!command)
+    {
+        return 0;
+    }
+
+    char command_line[256];
+#if defined(_WIN32) || defined(_WIN64)
+    snprintf(command_line, sizeof(command_line), "%s --version > NUL 2>&1", command);
+#else
+    snprintf(command_line, sizeof(command_line), "%s --version > /dev/null 2>&1", command);
+#endif
+    int result = system(command_line);
+    return process_exit_code(result) == 0;
+}
+
+static char *find_python_command(void)
+{
+    const char *env_python = getenv("A_LANG_PYTHON");
+    if (env_python && env_python[0] != '\0')
+    {
+        if (command_works(env_python))
+        {
+            return duplicate_string(env_python);
+        }
+        return NULL;
+    }
+
+    for (int i = 0; python_candidates[i] != NULL; i++)
+    {
+        if (command_works(python_candidates[i]))
+        {
+            return duplicate_string(python_candidates[i]);
+        }
+    }
+    return NULL;
+}
+
 #if defined(_WIN32) || defined(_WIN64)
 #include <direct.h>
 #include <io.h>
@@ -150,13 +293,22 @@ static void record_current(const char *value)
 #define GETCWD _getcwd
 #define PATH_SEPARATOR '\\'
 #define ACCESS _access
+#define MKDIR(path) _mkdir(path)
+#define RMDIR(path) _rmdir(path)
+#define POPEN _popen
+#define PCLOSE _pclose
 #else
 #include <unistd.h>
 #include <dirent.h>
+#include <sys/wait.h>
 #define CHDIR chdir
 #define GETCWD getcwd
 #define PATH_SEPARATOR '/'
 #define ACCESS access
+#define MKDIR(path) mkdir(path, 0777)
+#define RMDIR(path) rmdir(path)
+#define POPEN popen
+#define PCLOSE pclose
 extern char **environ;
 #endif
 
@@ -787,4 +939,310 @@ Value os_environ(Value *args, int arg_count)
     }
 #endif
     return env_map;
+}
+
+Value os_pwd(Value *args, int arg_count)
+{
+    if (arg_count != 0)
+    {
+        fprintf(stderr, "Error: os.pwd() expects no arguments\n");
+        return value_make_null();
+    }
+    return os_getcwd(args, arg_count);
+}
+
+Value os_ls(Value *args, int arg_count)
+{
+    if (!(arg_count == 0 || (arg_count == 1 && args[0].type == VALUE_STRING)))
+    {
+        fprintf(stderr, "Error: os.ls() expects zero args or one path string\n");
+        return list_create();
+    }
+    return os_listdir(args, arg_count);
+}
+
+Value os_cd(Value *args, int arg_count)
+{
+    if (arg_count != 1 || args[0].type != VALUE_STRING)
+    {
+        fprintf(stderr, "Error: os.cd() expects one path string\n");
+        return value_make_null();
+    }
+    return os_chdir(args, arg_count);
+}
+
+Value os_mkdir(Value *args, int arg_count)
+{
+    if (arg_count != 1 || args[0].type != VALUE_STRING)
+    {
+        fprintf(stderr, "Error: os.mkdir() expects one path string\n");
+        return value_make_null();
+    }
+
+    if (MKDIR(args[0].data.string_val) != 0)
+    {
+        perror("os.mkdir() error");
+        return value_make_null();
+    }
+
+    return value_make_bool(true);
+}
+
+Value os_touch(Value *args, int arg_count)
+{
+    if (arg_count != 1 || args[0].type != VALUE_STRING)
+    {
+        fprintf(stderr, "Error: os.touch() expects one path string\n");
+        return value_make_null();
+    }
+
+    FILE *file = fopen(args[0].data.string_val, "ab");
+    if (!file)
+    {
+        perror("os.touch() error");
+        return value_make_null();
+    }
+    fclose(file);
+    return value_make_bool(true);
+}
+
+static int copy_file_binary(const char *source_path, const char *dest_path)
+{
+    FILE *src = fopen(source_path, "rb");
+    if (!src)
+    {
+        return 0;
+    }
+
+    FILE *dest = fopen(dest_path, "wb");
+    if (!dest)
+    {
+        fclose(src);
+        return 0;
+    }
+
+    char buffer[4096];
+    size_t read_size = 0;
+    while ((read_size = fread(buffer, 1, sizeof(buffer), src)) > 0)
+    {
+        if (fwrite(buffer, 1, read_size, dest) != read_size)
+        {
+            fclose(src);
+            fclose(dest);
+            return 0;
+        }
+    }
+
+    fclose(src);
+    fclose(dest);
+    return 1;
+}
+
+Value os_cp(Value *args, int arg_count)
+{
+    if (arg_count != 2 || args[0].type != VALUE_STRING || args[1].type != VALUE_STRING)
+    {
+        fprintf(stderr, "Error: os.cp() expects source and destination path strings\n");
+        return value_make_null();
+    }
+
+    if (!copy_file_binary(args[0].data.string_val, args[1].data.string_val))
+    {
+        perror("os.cp() error");
+        return value_make_null();
+    }
+
+    return value_make_bool(true);
+}
+
+Value os_mv(Value *args, int arg_count)
+{
+    if (arg_count != 2 || args[0].type != VALUE_STRING || args[1].type != VALUE_STRING)
+    {
+        fprintf(stderr, "Error: os.mv() expects source and destination path strings\n");
+        return value_make_null();
+    }
+
+    if (rename(args[0].data.string_val, args[1].data.string_val) != 0)
+    {
+        perror("os.mv() error");
+        return value_make_null();
+    }
+
+    return value_make_bool(true);
+}
+
+Value os_rm(Value *args, int arg_count)
+{
+    if (arg_count != 1 || args[0].type != VALUE_STRING)
+    {
+        fprintf(stderr, "Error: os.rm() expects one path string\n");
+        return value_make_null();
+    }
+
+    const char *path = args[0].data.string_val;
+    if (remove(path) == 0)
+    {
+        return value_make_bool(true);
+    }
+
+    if (RMDIR(path) == 0)
+    {
+        return value_make_bool(true);
+    }
+
+    perror("os.rm() error");
+    return value_make_null();
+}
+
+Value os_echo(Value *args, int arg_count)
+{
+    if (arg_count < 1)
+    {
+        fprintf(stderr, "Error: os.echo() expects at least one argument\n");
+        return value_make_null();
+    }
+
+    size_t capacity = 64;
+    size_t length = 0;
+    char *joined = malloc(capacity);
+    if (!joined)
+    {
+        return value_make_null();
+    }
+    joined[0] = '\0';
+
+    for (int i = 0; i < arg_count; i++)
+    {
+        if (i > 0)
+        {
+            append_text(&joined, &length, &capacity, " ");
+        }
+        char *text = value_to_string(args[i]);
+        append_text(&joined, &length, &capacity, text);
+        free(text);
+    }
+
+    printf("%s\n", joined);
+    Value result = value_make_string(joined);
+    free(joined);
+    return result;
+}
+
+Value python_run(Value *args, int arg_count)
+{
+    if (arg_count < 1 || arg_count > 2 || args[0].type != VALUE_STRING)
+    {
+        fprintf(stderr, "Error: python.run() expects a script path and optional argument list\n");
+        return make_command_result(-1, "", "invalid arguments");
+    }
+
+    const char *script_path = args[0].data.string_val;
+    FILE *script_file = fopen(script_path, "r");
+    if (!script_file)
+    {
+        return make_command_result(-1, "", "script file not found");
+    }
+    fclose(script_file);
+
+    if (arg_count == 2 && args[1].type != VALUE_LIST)
+    {
+        fprintf(stderr, "Error: python.run() optional second argument must be a list\n");
+        return make_command_result(-1, "", "python arguments must be a list");
+    }
+
+    char *python_cmd = find_python_command();
+    if (!python_cmd)
+    {
+        return make_command_result(-1, "", "python interpreter not found");
+    }
+
+    char *quoted_python = shell_quote(python_cmd);
+    char *quoted_script = shell_quote(script_path);
+    if (!quoted_python || !quoted_script)
+    {
+        free(python_cmd);
+        free(quoted_python);
+        free(quoted_script);
+        return make_command_result(-1, "", "failed to prepare python command");
+    }
+
+    size_t capacity = 1024;
+    size_t length = 0;
+    char *command = malloc(capacity);
+    if (!command)
+    {
+        free(python_cmd);
+        free(quoted_python);
+        free(quoted_script);
+        return make_command_result(-1, "", "failed to allocate command buffer");
+    }
+    command[0] = '\0';
+
+    append_text(&command, &length, &capacity, quoted_python);
+    append_text(&command, &length, &capacity, " ");
+    append_text(&command, &length, &capacity, quoted_script);
+
+    if (arg_count == 2)
+    {
+        for (int i = 0; i < args[1].data.list_val.count; i++)
+        {
+            char *arg_text = value_to_string(args[1].data.list_val.elements[i]);
+            char *quoted_arg = shell_quote(arg_text);
+            free(arg_text);
+            if (!quoted_arg)
+            {
+                free(command);
+                free(python_cmd);
+                free(quoted_python);
+                free(quoted_script);
+                return make_command_result(-1, "", "failed to prepare python arguments");
+            }
+            append_text(&command, &length, &capacity, " ");
+            append_text(&command, &length, &capacity, quoted_arg);
+            free(quoted_arg);
+        }
+    }
+
+    append_text(&command, &length, &capacity, " 2>&1");
+
+    FILE *pipe = POPEN(command, "r");
+    if (!pipe)
+    {
+        free(command);
+        free(python_cmd);
+        free(quoted_python);
+        free(quoted_script);
+        return make_command_result(-1, "", "failed to execute python process");
+    }
+
+    size_t output_capacity = 1024;
+    size_t output_length = 0;
+    char *output = malloc(output_capacity);
+    if (!output)
+    {
+        PCLOSE(pipe);
+        free(command);
+        free(python_cmd);
+        free(quoted_python);
+        free(quoted_script);
+        return make_command_result(-1, "", "failed to allocate output buffer");
+    }
+    output[0] = '\0';
+
+    char chunk[512];
+    while (fgets(chunk, sizeof(chunk), pipe))
+    {
+        append_text(&output, &output_length, &output_capacity, chunk);
+    }
+
+    int exit_code = process_exit_code(PCLOSE(pipe));
+    Value result = make_command_result(exit_code, output, exit_code == 0 ? NULL : "python process exited with non-zero status");
+
+    free(output);
+    free(command);
+    free(python_cmd);
+    free(quoted_python);
+    free(quoted_script);
+    return result;
 }
