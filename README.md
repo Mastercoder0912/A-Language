@@ -55,6 +55,8 @@ Hello, World!
 - Module importing
 - File Input/Output
 - Built-in standard library
+- Python script execution through `python.run(...)`
+- Beginner-friendly OS commands through `os` (filesystem and path basics)
 
 ## Implementation
 
@@ -128,6 +130,55 @@ Example:
 ```bash
 arun examples/hello.a
 ```
+
+---
+
+# Python Integration
+
+Use the `python` module when you want a `.a` program to run a Python script:
+
+```a
+dict result = python.run("tests/python_success.py", ["hello", 42])
+print(result.get("ok"))
+print(result.get("status"))
+print(result.get("output"))
+```
+
+`python.run` returns a dictionary with:
+
+- `ok` (`True`/`False`)
+- `status` (process exit code, or `-1` for setup failures)
+- `output` (captured standard output/error text)
+- `error` (`null` on success, error text on failure)
+
+If Python is missing or the script path is invalid, the call returns a failed result with a helpful `error`.
+
+---
+
+# OS Commands for Learning
+
+The `os` module includes educational command-style helpers:
+
+- `os.pwd()` current working directory
+- `os.ls(path?)` list entries
+- `os.cd(path)` change directory
+- `os.mkdir(path)` create directory
+- `os.touch(path)` create/update file
+- `os.cp(src, dst)` copy file
+- `os.mv(src, dst)` move/rename file or directory
+- `os.rm(path)` remove file or empty directory
+- `os.echo(...)` print joined text
+
+Example:
+
+```a
+os.mkdir("sandbox")
+os.cd("sandbox")
+os.touch("notes.txt")
+os.echo("Working in", os.pwd())
+```
+
+These commands are intentionally focused and return clear errors for invalid paths, missing files, and invalid arguments.
 
 ---
 
@@ -235,11 +286,13 @@ Abstract Syntax Tree (AST)
 - OS class
 - Queue Data Type
 - Standard Library
+- Python integration (`python.run`)
+- Educational OS commands (`os.pwd`, `os.ls`, `os.cd`, `os.mkdir`, `os.touch`, `os.cp`, `os.mv`, `os.rm`, `os.echo`)
 
 ## Planned
 
 - Garbage Collection
-- Multi-language Processing
+- Expanded Multi-language Processing
 - Additional Low-level Capabilities
 - Expanded Standard Library
 
@@ -252,6 +305,12 @@ Run the test suite:
 ```bash
 make test
 ```
+
+Current automated suite includes:
+
+- baseline language integration program (`test_full.a`)
+- Python integration tests (`tests/python_integration.a`, `tests/python_missing_interpreter.a`)
+- OS command tests (`tests/os_commands.a`)
 
 ---
 

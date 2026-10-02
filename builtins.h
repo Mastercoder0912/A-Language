@@ -27,5 +27,16 @@ Value os_exists(Value *args, int arg_count);
 Value os_join(Value *args, int arg_count);
 Value os_exec(Value *args, int arg_count);
 Value os_environ(Value *args, int arg_count);
+Value os_pwd(Value *args, int arg_count);
+Value os_ls(Value *args, int arg_count);
+Value os_cd(Value *args, int arg_count);
+Value os_mkdir(Value *args, int arg_count);
+Value os_touch(Value *args, int arg_count);
+Value os_cp(Value *args, int arg_count);
+Value os_mv(Value *args, int arg_count);
+Value os_rm(Value *args, int arg_count);
+Value os_echo(Value *args, int arg_count);
+
+Value python_run(Value *args, int arg_count);
 
 #endif
